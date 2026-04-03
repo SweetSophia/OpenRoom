@@ -4,13 +4,14 @@
  * Extracted from ChatPanel for maintainability.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Pencil, List } from 'lucide-react';
 import { PROVIDER_MODELS, getDefaultProviderConfig, type LLMProvider } from '@/lib/llmModels';
-import type { LLMConfig } from '@/lib/llmModels';
+import type { LLMConfig, LLMConfigUpdate } from '@/lib/llmModels';
 import {
   getDefaultImageGenConfig,
   type ImageGenConfig,
+  type ImageGenConfigUpdate,
   type ImageGenProvider,
 } from '@/lib/imageGenClient';
 import styles from './index.module.scss';
@@ -18,7 +19,10 @@ import styles from './index.module.scss';
 interface SettingsModalProps {
   config: LLMConfig | null;
   imageGenConfig: ImageGenConfig | null;
-  onSave: (_config: LLMConfig, _igConfig: ImageGenConfig | null) => void;
+  onSave: (
+    _config: LLMConfigUpdate,
+    _igConfig: ImageGenConfigUpdate | null,
+  ) => Promise<{ ok: boolean; error?: string }> | { ok: boolean; error?: string } | void;
   onClose: () => void;
 }
 
@@ -30,7 +34,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   // LLM settings
   const [provider, setProvider] = useState<LLMProvider>(config?.provider || 'minimax');
-  const [apiKey, setApiKey] = useState(config?.apiKey || '');
+  const [apiKey, setApiKey] = useState('');
+  const [apiKeyDirty, setApiKeyDirty] = useState(false);
   const [baseUrl, setBaseUrl] = useState(
     config?.baseUrl || getDefaultProviderConfig('minimax').baseUrl,
   );
@@ -45,7 +50,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [igProvider, setIgProvider] = useState<ImageGenProvider>(
     imageGenConfig?.provider || 'gemini',
   );
-  const [igApiKey, setIgApiKey] = useState(imageGenConfig?.apiKey || '');
+  const [igApiKey, setIgApiKey] = useState('');
+  const [igApiKeyDirty, setIgApiKeyDirty] = useState(false);
   const [igBaseUrl, setIgBaseUrl] = useState(
     imageGenConfig?.baseUrl || getDefaultImageGenConfig('gemini').baseUrl,
   );
@@ -53,12 +59,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     imageGenConfig?.model || getDefaultImageGenConfig('gemini').model,
   );
   const [igCustomHeaders, setIgCustomHeaders] = useState(imageGenConfig?.customHeaders || '');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  // Sync local state when parent props change (e.g. async config load while modal is open)
+  // Track whether the user has edited any field locally — prevents useEffect from clobbering in-progress edits
+  const hasLocalEditsRef = useRef(false);
+
+  // Sync local state when parent props change — but only before first local edit
   useEffect(() => {
     if (!config) return;
+    if (hasLocalEditsRef.current) return;
     setProvider(config.provider);
-    setApiKey(config.apiKey);
+    setApiKey('');
+    setApiKeyDirty(false);
     setBaseUrl(config.baseUrl || getDefaultProviderConfig(config.provider).baseUrl);
     setModel(config.model || getDefaultProviderConfig(config.provider).model);
     setCustomHeaders(config.customHeaders || '');
@@ -67,8 +80,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     if (!imageGenConfig) return;
+    if (hasLocalEditsRef.current) return;
     setIgProvider(imageGenConfig.provider);
-    setIgApiKey(imageGenConfig.apiKey);
+    setIgApiKey('');
+    setIgApiKeyDirty(false);
     setIgBaseUrl(
       imageGenConfig.baseUrl || getDefaultImageGenConfig(imageGenConfig.provider).baseUrl,
     );
@@ -77,6 +92,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [imageGenConfig]);
 
   const handleProviderChange = (p: LLMProvider) => {
+    hasLocalEditsRef.current = true;
     setProvider(p);
     const defaults = getDefaultProviderConfig(p);
     setBaseUrl(defaults.baseUrl);
@@ -85,16 +101,40 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleModelChange = (newModel: string) => {
+    hasLocalEditsRef.current = true;
     setModel(newModel);
     setManualModelMode(false);
   };
 
   const handleIgProviderChange = (p: ImageGenProvider) => {
+    hasLocalEditsRef.current = true;
     setIgProvider(p);
     const defaults = getDefaultImageGenConfig(p);
     setIgBaseUrl(defaults.baseUrl);
     setIgModel(defaults.model);
   };
+
+  const llmApiKeyPlaceholder = config?.hasApiKey
+    ? 'Server key configured (enter to replace)'
+    : 'Optional for local servers';
+  const imageApiKeyPlaceholder = imageGenConfig?.hasApiKey
+    ? 'Server key configured (enter to replace)'
+    : 'API Key...';
+
+  const llmEndpointChanged =
+    !!config && (provider !== config.provider || baseUrl !== config.baseUrl);
+  const imageGenEndpointChanged =
+    !!imageGenConfig &&
+    (igProvider !== imageGenConfig.provider || igBaseUrl !== imageGenConfig.baseUrl);
+
+  const buildImageGenConfig = (): ImageGenConfigUpdate => ({
+    provider: igProvider,
+    baseUrl: igBaseUrl,
+    model: igModel,
+    customHeaders: igCustomHeaders,
+    ...(igApiKeyDirty ? { apiKey: igApiKey } : {}),
+    ...(!igApiKeyDirty && imageGenEndpointChanged ? { apiKey: '' } : {}),
+  });
 
   return (
     <div className={styles.overlay} data-testid="settings-overlay">
@@ -125,8 +165,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             className={styles.fieldInput}
             type="password"
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Optional for local servers"
+            onChange={(e) => {
+              hasLocalEditsRef.current = true;
+              setApiKeyDirty(true);
+              setApiKey(e.target.value);
+            }}
+            placeholder={llmApiKeyPlaceholder}
           />
         </div>
 
@@ -135,7 +179,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <input
             className={styles.fieldInput}
             value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
+            onChange={(e) => {
+              hasLocalEditsRef.current = true;
+              setBaseUrl(e.target.value);
+            }}
           />
         </div>
 
@@ -157,7 +204,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 </select>
                 <button
                   type="button"
-                  onClick={() => setManualModelMode(true)}
+                  onClick={() => {
+                    hasLocalEditsRef.current = true;
+                    setManualModelMode(true);
+                  }}
                   className={styles.manualToggleBtn}
                   title="Enter custom model name"
                 >
@@ -169,13 +219,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input
                   className={styles.fieldInput}
                   value={model}
-                  onChange={(e) => setModel(e.target.value)}
+                  onChange={(e) => {
+                    hasLocalEditsRef.current = true;
+                    setModel(e.target.value);
+                  }}
                   placeholder="e.g. gpt-4-turbo"
                 />
                 {isPresetModel && (
                   <button
                     type="button"
-                    onClick={() => setManualModelMode(false)}
+                    onClick={() => {
+                      hasLocalEditsRef.current = true;
+                      setManualModelMode(false);
+                    }}
                     className={styles.manualToggleBtn}
                     title="Back to model list"
                   >
@@ -192,7 +248,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <textarea
             className={styles.fieldInput}
             value={customHeaders}
-            onChange={(e) => setCustomHeaders(e.target.value)}
+            onChange={(e) => {
+              hasLocalEditsRef.current = true;
+              setCustomHeaders(e.target.value);
+            }}
             placeholder={'X-Custom-Header: value\nAnother-Header: value'}
             rows={3}
             style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}
@@ -220,8 +279,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             className={styles.fieldInput}
             type="password"
             value={igApiKey}
-            onChange={(e) => setIgApiKey(e.target.value)}
-            placeholder="API Key..."
+            onChange={(e) => {
+              hasLocalEditsRef.current = true;
+              setIgApiKeyDirty(true);
+              setIgApiKey(e.target.value);
+            }}
+            placeholder={imageApiKeyPlaceholder}
           />
         </div>
 
@@ -230,7 +293,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <input
             className={styles.fieldInput}
             value={igBaseUrl}
-            onChange={(e) => setIgBaseUrl(e.target.value)}
+            onChange={(e) => {
+              hasLocalEditsRef.current = true;
+              setIgBaseUrl(e.target.value);
+            }}
           />
         </div>
 
@@ -239,7 +305,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <input
             className={styles.fieldInput}
             value={igModel}
-            onChange={(e) => setIgModel(e.target.value)}
+            onChange={(e) => {
+              hasLocalEditsRef.current = true;
+              setIgModel(e.target.value);
+            }}
           />
         </div>
 
@@ -248,7 +317,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <textarea
             className={styles.fieldInput}
             value={igCustomHeaders}
-            onChange={(e) => setIgCustomHeaders(e.target.value)}
+            onChange={(e) => {
+              hasLocalEditsRef.current = true;
+              setIgCustomHeaders(e.target.value);
+            }}
             placeholder={'X-Custom-Header: value'}
             rows={2}
             style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}
@@ -256,32 +328,50 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <div className={styles.settingsActions}>
+          {saveError && (
+            <div style={{ color: '#ff6b6b', fontSize: '12px', marginRight: 'auto' }}>
+              {saveError}
+            </div>
+          )}
           <button className={styles.cancelBtn} onClick={onClose}>
             Cancel
           </button>
           <button
             className={styles.saveBtn}
-            onClick={() => {
-              const llmCfg: LLMConfig = {
+            disabled={saving}
+            onClick={async () => {
+              setSaveError(null);
+              setSaving(true);
+              const llmCfg: LLMConfigUpdate = {
                 provider,
-                apiKey,
                 baseUrl,
                 model,
-                ...(customHeaders.trim() ? { customHeaders } : {}),
+                customHeaders,
               };
-              const igCfg: ImageGenConfig | null = igApiKey.trim()
-                ? {
-                    provider: igProvider,
-                    apiKey: igApiKey,
-                    baseUrl: igBaseUrl,
-                    model: igModel,
-                    ...(igCustomHeaders.trim() ? { customHeaders: igCustomHeaders } : {}),
-                  }
-                : null;
-              onSave(llmCfg, igCfg);
+              if (apiKeyDirty) {
+                llmCfg.apiKey = apiKey;
+              } else if (llmEndpointChanged) {
+                llmCfg.apiKey = '';
+              }
+              const nextImageGenConfig = buildImageGenConfig();
+              const igCfg: ImageGenConfigUpdate | null = imageGenConfig
+                ? nextImageGenConfig
+                : igApiKey.trim()
+                  ? { ...nextImageGenConfig, apiKey: igApiKey }
+                  : null;
+              try {
+                const result = await onSave(llmCfg, igCfg);
+                if (result && result.ok === false) {
+                  setSaveError(result.error || 'Failed to save settings');
+                }
+              } catch (err) {
+                setSaveError(err instanceof Error ? err.message : String(err));
+              } finally {
+                setSaving(false);
+              }
             }}
           >
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>

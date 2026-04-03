@@ -16,7 +16,6 @@ import type { LLMConfig } from '@/lib/llmModels';
 import {
   loadImageGenConfig,
   loadImageGenConfigSync,
-  saveImageGenConfig,
   type ImageGenConfig,
 } from '@/lib/imageGenClient';
 // loadActionsFromMeta used by useConversationEngine
@@ -669,12 +668,28 @@ const ChatPanel: React.FC<{
         <SettingsModal
           config={config}
           imageGenConfig={imageGenConfig}
-          onSave={(c, igc) => {
-            setConfig(c);
-            setImageGenConfig(igc);
-            saveConfig(c, igc);
-            if (igc) saveImageGenConfig(igc);
-            setShowSettings(false);
+          onSave={async (c, igc) => {
+            const saveResult = await saveConfig(c, igc);
+            if (saveResult && saveResult.ok === false) {
+              return saveResult;
+            }
+
+            const [nextConfig, nextImageGenConfig] = await Promise.all([
+              loadConfig(),
+              loadImageGenConfig(),
+            ]);
+
+            // Keep the previous in-memory state on reload failure so we do not
+            // store partial update objects or freshly typed raw API keys in state.
+            setConfig(nextConfig ?? config);
+            setImageGenConfig(nextImageGenConfig ?? imageGenConfig);
+
+            const imageGenReloadSucceeded = igc === null ? true : nextImageGenConfig !== null;
+            if (nextConfig !== null && imageGenReloadSucceeded) {
+              setShowSettings(false);
+            }
+
+            return { ok: true };
           }}
           onClose={() => setShowSettings(false)}
         />
