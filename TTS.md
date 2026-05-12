@@ -1,23 +1,21 @@
-# Text-to-Speech (TTS) Capability Analysis
+# Text-to-Speech (TTS) Integration Notes
 
 **Project:** OpenRoom / VibeApps
-**Analysis Date:** 2026-05-12
-**Scope:** Exhaustive codebase audit for TTS, speech synthesis, voice, and audio playback systems
-**Analyst:** Automated codebase scan
+**Scope:** Current TTS, speech synthesis, voice, and audio playback integration points
 
 ---
 
-## Executive Summary
+## Summary
 
-**This codebase has ZERO TTS integration.**
+OpenRoom / VibeApps does not currently include a TTS integration.
 
-After reading every core file, there is absolutely no TTS, speech synthesis, audio output, or voice integration. The codebase is entirely text-and-image oriented for AI character interaction. All audio-related code is limited to:
+The current AI character interaction flow is text-and-image oriented. Audio-related code is limited to:
 
 1. A music player app that streams MP3s via `HTMLAudioElement`
 2. Muted video elements for character avatars and live wallpaper
-3. Generic binary file storage capable of holding arbitrary bytes (currently used only for images)
+3. Generic binary file storage capable of holding arbitrary bytes, used today for generated images and uploaded character assets
 
-The codebase is from MiniMax-AI (GitHub org, license, author fields). MiniMax as a company likely offers TTS APIs, but this open-source codebase does NOT integrate them. The MiniMax provider is configured only for text chat via the Anthropic-compatible endpoint.
+MiniMax may offer TTS APIs separately, but this codebase does not integrate them. The MiniMax provider is configured only for text chat via the Anthropic-compatible endpoint.
 
 ---
 
@@ -217,7 +215,7 @@ export async function putBinaryFile(
 }
 ```
 
-**Current Usage:** Only called from `imageGenTools.ts` to save generated images.
+**Current Usage:** Called from `imageGenTools.ts` to save generated images and from `characterAssetUpload.ts` to save uploaded character images/videos.
 
 **Relevance to TTS:** This is the **exact storage mechanism** a TTS system would use to save generated audio files (e.g., `audio/mp3`, `audio/wav`). No code changes needed to the storage layer — it is already capable of persisting arbitrary binary data.
 
@@ -549,4 +547,4 @@ The absence of TTS is a deliberate product gap, not a technical limitation. All 
 
 ---
 
-*Document generated via exhaustive automated codebase analysis. All negative findings verified by direct file inspection and grep search.*
+These notes should be updated when a TTS provider, character voice metadata, or chat audio playback UI is added.

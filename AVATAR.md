@@ -1,6 +1,6 @@
-# Dynamic Agent Avatar System
+# Avatar And Character Expression System
 
-Internal developer documentation for the OpenRoom / VibeApps avatar and character expression system.
+Maintained developer documentation for OpenRoom / VibeApps avatar rendering, character expression media, and related app avatar usage.
 
 > **Note:** There is no single file named `Avatar.tsx` or `avatar.ts`. Avatar rendering is distributed across multiple components and modules. This document maps the complete landscape.
 
@@ -44,7 +44,7 @@ The avatar system has two independent tracks:
 │  │  (CharacterMetaInfo)        │    │    or vibeContainerMock.ts      │  │
 │  └─────────────────────────────┘    └─────────────────────────────────┘  │
 │                                                                          │
-│  CharacterPanel.tsx ──→ Edit character meta_info (images/videos/URLs)    │
+│  CharacterPanel.tsx ──→ Edit character meta_info (URLs or local uploads)  │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -56,7 +56,7 @@ The avatar system has two independent tracks:
 ### Type Definitions
 
 ```typescript
-// /home/niya/github/OpenRoom/apps/webuiapps/src/lib/characterManager.ts
+// apps/webuiapps/src/lib/characterManager.ts
 
 export const CHARACTER_EMOTION_LIST = [
   'default',
@@ -115,7 +115,7 @@ All file operations go through the `@/lib` unified file API per project conventi
 
 ## Main Avatar Component: CharacterAvatar
 
-**File:** `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/ChatSubComponents.tsx` (lines 92-198)
+**File:** `apps/webuiapps/src/components/ChatPanel/ChatSubComponents.tsx` (lines 92-198)
 
 The `CharacterAvatar` is a `memo()`-wrapped React component rendered inside the ChatPanel's left 280px column (`.avatarSide`).
 
@@ -179,7 +179,7 @@ export const CharacterAvatar: React.FC<{
 ### CSS Layout
 
 ```scss
-// /home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/index.module.scss
+// apps/webuiapps/src/components/ChatPanel/index.module.scss
 
 .avatarSide {
   width: 280px;
@@ -206,7 +206,7 @@ export const CharacterAvatar: React.FC<{
 
 ## Emotion Resolution Algorithm
 
-**File:** `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/characterManager.ts` (lines 316-368)
+**File:** `apps/webuiapps/src/lib/characterManager.ts` (lines 316-368)
 
 ### `resolveEmotionMedia(config, emotion?)`
 
@@ -249,9 +249,9 @@ export function clearEmotionVideoCache(characterId?: string): void {
 ## Emotion Triggering Flow
 
 **Files:**
-- `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/useConversationEngine.ts`
-- `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/toolDefinitions.ts`
-- `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/index.tsx`
+- `apps/webuiapps/src/components/ChatPanel/useConversationEngine.ts`
+- `apps/webuiapps/src/components/ChatPanel/toolDefinitions.ts`
+- `apps/webuiapps/src/components/ChatPanel/index.tsx`
 
 ### Sequence Diagram
 
@@ -322,7 +322,7 @@ LLM ──→ respond_to_user tool call
 
 ## User Avatars (vibeInfo)
 
-**File:** `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/vibeInfo.ts`
+**File:** `apps/webuiapps/src/lib/vibeInfo.ts`
 
 The `vibeInfo` module wraps three info queries from `@gui/vibe-container`:
 - `getUserInfo()` → `UserInfoResponse`
@@ -332,7 +332,7 @@ The `vibeInfo` module wraps three info queries from `@gui/vibe-container`:
 ### vibe-container Types
 
 ```typescript
-// /home/niya/github/OpenRoom/packages/vibe-container/src/types/index.ts
+// packages/vibe-container/src/types/index.ts
 
 export interface UserInfoResponse {
   userId: number;
@@ -352,7 +352,7 @@ export interface CharacterInfoResponse {
 ### Mock Types (Standalone Mode)
 
 ```typescript
-// /home/niya/github/OpenRoom/apps/webuiapps/src/lib/vibeContainerMock.ts
+// apps/webuiapps/src/lib/vibeContainerMock.ts
 
 export interface UserInfoResponse {
   user_id?: string;
@@ -385,7 +385,7 @@ getCharacterInfo: () => Promise.resolve({ character_id: 'assistant', name: 'Assi
 
 ## CharacterPanel (Settings UI)
 
-**File:** `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/CharacterPanel.tsx`
+**File:** `apps/webuiapps/src/components/ChatPanel/CharacterPanel.tsx`
 
 The character settings modal has two views: **List** and **Editor**.
 
@@ -401,17 +401,18 @@ The character settings modal has two views: **List** and **Editor**.
 
 - 160px preview of `base_image_url`
 - Name, Gender, Persona Description fields
-- **Default Avatar** field — paste a single image URL
-- **Emotions & Expressions** — per-emotion image/video URL fields
-  - Users manually paste URLs; no image generation
-  - Video detection by extension regex: `/\.(mp4|webm|mov|ogg)(\?|$)/i`
-  - Thumbnail preview loops muted video or shows static image
+- **Default Avatar** field — paste an image URL or upload a local image
+- **Emotions & Expressions** — per-emotion image/video URL fields plus local upload slots
+  - Users can paste external URLs or upload local assets through `ImageUploader`
+  - Local uploads are stored under `/characters/{characterId}/emotions/` via `characterAssetUpload.ts`
+  - Video detection is centralized in `isVideoAssetUrl()` and supports local uploaded paths as well as external URLs
+  - Thumbnail previews loop muted videos or show static images
 - Add/remove custom emotions
 
 ### Editor Data Flow
 
 ```
-User pastes URL → emotionImages[emotion] = url
+User pastes URL or uploads asset → emotionImages[emotion] or emotionVideos[emotion] = path/url
         │
         ▼
    On Save:
@@ -421,15 +422,15 @@ User pastes URL → emotionImages[emotion] = url
    - Persist via saveCharacterCollection() → /api/characters + localStorage
 ```
 
-**Note:** The editor's single input field per emotion populates `emotionImages`. There is no separate UI for `emotion_videos` arrays; the editor treats the input as either an image or a single video URL. To configure multiple videos per emotion, external tooling or manual JSON editing is required.
+**Note:** The editor supports one configured asset per emotion in the UI. Image assets are saved in `emotion_images`; video assets are saved as single-entry arrays in `emotion_videos`. The underlying `emotion_videos: Record<string, string[]>` model still supports multiple videos per emotion, but the editor does not expose multi-video configuration.
 
 ---
 
 ## Image Generation (Separate System)
 
 **Files:**
-- `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/imageGenTools.ts`
-- `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/imageGenClient.ts`
+- `apps/webuiapps/src/lib/imageGenTools.ts`
+- `apps/webuiapps/src/lib/imageGenClient.ts`
 
 The `generate_image` LLM tool is **completely separate** from the avatar system.
 
@@ -457,8 +458,8 @@ LLM calls generate_image(prompt)
 
 | Aspect | Avatar System | Image Generation |
 |--------|--------------|------------------|
-| Source | User-pasted URLs in CharacterPanel | LLM-triggered text-to-image API |
-| Storage | Character JSON (URLs only) | Binary files on disk (`generated-images/`) |
+| Source | User-pasted URLs or local uploads in CharacterPanel | LLM-triggered text-to-image API |
+| Storage | Character JSON with external URLs or `/characters/...` asset paths | Binary files on disk (`generated-images/`) |
 | Display | `CharacterAvatar` in ChatPanel left panel | Inline in chat messages |
 | URLs | External CDN URLs | `/api/session-data?path=...` or `data:` URLs |
 | Blob/ObjectURL usage | None | None |
@@ -469,7 +470,7 @@ LLM calls generate_image(prompt)
 
 ### Twitter App
 
-**File:** `/home/niya/github/OpenRoom/apps/webuiapps/src/pages/Twitter/index.tsx`
+**File:** `apps/webuiapps/src/pages/Twitter/index.tsx`
 
 ```typescript
 interface AvatarProps {
@@ -492,7 +493,7 @@ const Avatar: React.FC<AvatarProps> = ({ name, avatarUrl, className }) => {
 
 ### Chess App
 
-**File:** `/home/niya/github/OpenRoom/apps/webuiapps/src/pages/Chess/index.tsx`
+**File:** `apps/webuiapps/src/pages/Chess/index.tsx`
 
 ```tsx
 <div className={styles.avatarWrap}>
@@ -513,20 +514,20 @@ const Avatar: React.FC<AvatarProps> = ({ name, avatarUrl, className }) => {
 
 | File | Purpose |
 |------|---------|
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/ChatSubComponents.tsx` | `CharacterAvatar` component with crossfade logic |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/index.tsx` | ChatPanel parent; holds `currentEmotion` state, renders `CharacterAvatar` |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/index.module.scss` | `.avatarSide`, `.avatarImage`, `.avatarPlaceholder` styles |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/CharacterPanel.tsx` | Character list & editor UI |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/useConversationEngine.ts` | Emotion triggering via `respond_to_user` tool |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/components/ChatPanel/toolDefinitions.ts` | LLM tool schema for `respond_to_user` with emotion param |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/characterManager.ts` | `CharacterConfig`, `CharacterMetaInfo`, `resolveEmotionMedia()`, persistence |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/vibeInfo.ts` | `useVibeInfo()` hook wrapping container info queries |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/vibeContainerMock.ts` | Mock `getUserInfo()` / `getCharacterInfo()` returning no avatars |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/imageGenTools.ts` | `generate_image` tool — separate from avatars |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/lib/imageGenClient.ts` | Generic text-to-image API client |
-| `/home/niya/github/OpenRoom/packages/vibe-container/src/types/index.ts` | Real SDK types: `UserInfoResponse.avatarUrl`, `CharacterInfoResponse.avatarUrl` |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/pages/Twitter/index.tsx` | Twitter `Avatar` component using `avatarUrl` |
-| `/home/niya/github/OpenRoom/apps/webuiapps/src/pages/Chess/index.tsx` | Chess avatar using `characterInfo.avatarUrl` |
+| `apps/webuiapps/src/components/ChatPanel/ChatSubComponents.tsx` | `CharacterAvatar` component with crossfade logic |
+| `apps/webuiapps/src/components/ChatPanel/index.tsx` | ChatPanel parent; holds `currentEmotion` state, renders `CharacterAvatar` |
+| `apps/webuiapps/src/components/ChatPanel/index.module.scss` | `.avatarSide`, `.avatarImage`, `.avatarPlaceholder` styles |
+| `apps/webuiapps/src/components/ChatPanel/CharacterPanel.tsx` | Character list & editor UI |
+| `apps/webuiapps/src/components/ChatPanel/useConversationEngine.ts` | Emotion triggering via `respond_to_user` tool |
+| `apps/webuiapps/src/components/ChatPanel/toolDefinitions.ts` | LLM tool schema for `respond_to_user` with emotion param |
+| `apps/webuiapps/src/lib/characterManager.ts` | `CharacterConfig`, `CharacterMetaInfo`, `resolveEmotionMedia()`, persistence |
+| `apps/webuiapps/src/lib/vibeInfo.ts` | `useVibeInfo()` hook wrapping container info queries |
+| `apps/webuiapps/src/lib/vibeContainerMock.ts` | Mock `getUserInfo()` / `getCharacterInfo()` returning no avatars |
+| `apps/webuiapps/src/lib/imageGenTools.ts` | `generate_image` tool — separate from avatars |
+| `apps/webuiapps/src/lib/imageGenClient.ts` | Generic text-to-image API client |
+| `packages/vibe-container/src/types/index.ts` | Real SDK types: `UserInfoResponse.avatarUrl`, `CharacterInfoResponse.avatarUrl` |
+| `apps/webuiapps/src/pages/Twitter/index.tsx` | Twitter `Avatar` component using `avatarUrl` |
+| `apps/webuiapps/src/pages/Chess/index.tsx` | Chess avatar using `characterInfo.avatarUrl` |
 
 ---
 
@@ -549,7 +550,7 @@ These were likely carried over from a different character system (Talkie export 
 
 ## Important Implementation Notes
 
-1. **No blob URLs or `URL.createObjectURL`** anywhere in the avatar or image generation codebase. All media is loaded via direct URL strings.
+1. **No blob URLs or `URL.createObjectURL`** anywhere in the avatar or image generation codebase. External media is loaded via direct URL strings; local character uploads are loaded through `/api/session-data?path=...` URLs built by `diskStorage.buildFileUrl()`.
 
 2. **Video loop behavior:** Idle/default videos loop (`loop={true}`); emotion videos play once and trigger `onEmotionEnd` when finished.
 
@@ -559,6 +560,6 @@ These were likely carried over from a different character system (Talkie export 
 
 5. **Mock vs Real SDK type mismatch:** Standalone mode mock uses `avatar?: string`; production SDK uses `avatarUrl: string`. Apps should be defensive when reading avatar fields from `useVibeInfo()`.
 
-6. **CharacterPanel editor limitation:** The UI only allows one URL per emotion. The underlying data model (`emotion_videos: Record<string, string[]>`) supports arrays, but the editor does not expose multi-video configuration.
+6. **CharacterPanel editor limitation:** The UI only allows one configured asset per emotion. The underlying data model (`emotion_videos: Record<string, string[]>`) supports arrays, but the editor does not expose multi-video configuration.
 
 7. **All file operations** for character persistence use the `@/lib` unified file API (`/api/characters`), not direct IndexedDB access.
