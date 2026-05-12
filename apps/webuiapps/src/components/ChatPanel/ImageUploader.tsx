@@ -3,6 +3,7 @@ import { Upload, X } from 'lucide-react';
 import {
   uploadCharacterAsset,
   getCharacterAssetUrl,
+  deleteCharacterAsset,
   isExternalOrDataUrl,
   isVideoAssetUrl,
 } from '@/lib/characterAssetUpload';
@@ -32,6 +33,13 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const expectedUrlRef = useRef<string | undefined>(undefined);
+  const uploadSequenceRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      uploadSequenceRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     expectedUrlRef.current = currentUrl;
@@ -61,6 +69,16 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   }, [currentUrl]);
 
   const handleFile = async (file: File) => {
+    const uploadSequence = (uploadSequenceRef.current += 1);
+    const isCurrentUpload = () => uploadSequenceRef.current === uploadSequence;
+    const cleanupStaleUpload = async (path: string) => {
+      try {
+        await deleteCharacterAsset(path);
+      } catch (err) {
+        console.warn('Failed to clean up stale uploaded asset:', err);
+      }
+    };
+
     const isVid = file.type.startsWith('video/') || isVideoAssetUrl(file.name);
     setIsVideo(isVid);
     setUploading(true);
@@ -68,6 +86,11 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     try {
       const type = isVid ? 'video' : 'image';
       const path = await uploadCharacterAsset(characterId, emotion, file, type);
+      if (!isCurrentUpload()) {
+        await cleanupStaleUpload(path);
+        return;
+      }
+
       if (expectedUrlRef.current === path || !expectedUrlRef.current) {
 const isVidLocal = isVid;
         setIsVideo(isVidLocal);
@@ -75,27 +98,39 @@ const isVidLocal = isVid;
           setPreviewUrl(path);
         } else {
           const url = await getCharacterAssetUrl(path);
+          if (!isCurrentUpload()) {
+            await cleanupStaleUpload(path);
+            return;
+          }
           setPreviewUrl(url ?? null);
         }
       }
+      if (!isCurrentUpload()) {
+        await cleanupStaleUpload(path);
+        return;
+      }
       onUpload(path, type);
     } catch (err) {
+      if (!isCurrentUpload()) return;
       console.warn('Failed to upload asset:', err);
       setError('Upload failed. Check file size/type and try again.');
     } finally {
-      setUploading(false);
+      if (isCurrentUpload()) setUploading(false);
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragover(false);
+    if (uploading) return;
     const file = e.dataTransfer.files?.[0];
     if (file) handleFile(file);
   };
 
   const handleRemove = () => {
+    uploadSequenceRef.current += 1;
     setPreviewUrl(null);
+    setUploading(false);
     setIsVideo(false);
     setError(null);
     if (inputRef.current) inputRef.current.value = '';
@@ -103,7 +138,7 @@ const isVidLocal = isVid;
   };
 
   return (
-    <div className={styles.assetSlot}>
+    <div className={styles.assetSlot} aria-busy={uploading}>
       <div className={styles.assetSlotHeader}>
         <span className={styles.emotionTag}>{emotion}</span>
       </div>
@@ -115,7 +150,12 @@ const isVidLocal = isVid;
           ) : (
             <img src={previewUrl} alt={emotion} className={styles.assetMedia} />
           )}
-          <button className={styles.assetRemoveBtn} onClick={handleRemove} title="Remove">
+          <button
+            className={styles.assetRemoveBtn}
+            onClick={handleRemove}
+            title="Remove"
+            disabled={uploading}
+          >
             <X size={12} />
           </button>
         </div>
@@ -128,7 +168,10 @@ const isVidLocal = isVid;
           }}
           onDragLeave={() => setDragover(false)}
           onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
+          aria-busy={uploading}
+          onClick={() => {
+            if (!uploading) inputRef.current?.click();
+          }}
         >
           {uploading ? (
             <span className={styles.assetUploading}>Uploading...</span>
@@ -143,7 +186,9 @@ const isVidLocal = isVid;
             type="file"
             accept={accept}
             className={styles.assetHiddenInput}
+            disabled={uploading}
             onChange={(e) => {
+              if (uploading) return;
               const file = e.target.files?.[0];
               if (file) handleFile(file);
             }}
