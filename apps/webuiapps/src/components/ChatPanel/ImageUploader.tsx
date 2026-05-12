@@ -6,6 +6,7 @@ import {
   deleteCharacterAsset,
   isExternalOrDataUrl,
   isVideoAssetUrl,
+  sanitizeCharacterAssetTestIdPart,
 } from '@/lib/characterAssetUpload';
 import styles from './panel.module.scss';
 
@@ -34,6 +35,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const expectedUrlRef = useRef<string | undefined>(undefined);
   const uploadSequenceRef = useRef(0);
+  const safeEmotion = sanitizeCharacterAssetTestIdPart(emotion);
+  const testIdBase = `character-asset-upload-${safeEmotion}`;
+  const uploadLabel = `Upload asset for ${emotion}`;
 
   useEffect(() => {
     return () => {
@@ -143,7 +147,12 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   };
 
   return (
-    <div className={styles.assetSlot} aria-busy={uploading}>
+    <div
+      className={styles.assetSlot}
+      aria-busy={uploading}
+      aria-label={`${emotion} asset upload slot`}
+      data-testid={testIdBase}
+    >
       <div className={styles.assetSlotHeader}>
         <span className={styles.emotionTag}>{emotion}</span>
       </div>
@@ -172,13 +181,16 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
             className={styles.assetRemoveBtn}
             onClick={handleRemove}
             title="Remove"
+            aria-label={`Remove ${emotion} asset`}
             disabled={uploading}
+            data-testid={`${testIdBase}-remove`}
           >
             <X size={12} />
           </button>
         </div>
       ) : (
-        <div
+        <button
+          type="button"
           className={`${styles.assetDropzone} ${dragover ? styles.assetDropzoneActive : ''}`}
           onDragOver={(e) => {
             e.preventDefault();
@@ -186,10 +198,13 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           }}
           onDragLeave={() => setDragover(false)}
           onDrop={handleDrop}
+          aria-label={uploadLabel}
           aria-busy={uploading}
           onClick={() => {
             if (!uploading) inputRef.current?.click();
           }}
+          disabled={uploading}
+          data-testid={`${testIdBase}-dropzone`}
         >
           {uploading ? (
             <span className={styles.assetUploading}>Uploading...</span>
@@ -199,21 +214,27 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               <span className={styles.assetDropzoneText}>Drop or click</span>
             </>
           )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept={accept}
-            className={styles.assetHiddenInput}
-            disabled={uploading}
-            onChange={(e) => {
-              if (uploading) return;
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
-            }}
-          />
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className={styles.assetHiddenInput}
+        disabled={uploading}
+        aria-label={uploadLabel}
+        data-testid={`${testIdBase}-file-input`}
+        onChange={(e) => {
+          if (uploading) return;
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+        }}
+      />
+      {error && (
+        <div className={styles.assetError} aria-live="polite" data-testid={`${testIdBase}-error`}>
+          {error}
         </div>
       )}
-      {error && <div className={styles.assetError}>{error}</div>}
     </div>
   );
 };
