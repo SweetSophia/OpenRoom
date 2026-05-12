@@ -11,6 +11,8 @@ import {
   CHARACTER_VIDEO_MIME_TO_EXT,
   getCharacterAssetKind,
   getCharacterAssetUrl,
+  isImageAssetUrl,
+  isVideoAssetUrl,
   isLocalCharacterAssetPath,
   MAX_CHARACTER_VIDEO_BYTES,
   uploadCharacterAsset,
@@ -105,6 +107,40 @@ describe('characterAssetUpload', () => {
 
     expect(isLocalCharacterAssetPath(path)).toBe(true);
     expect(getCharacterAssetKind(path)).toBe(type);
+  });
+
+  it('detects video asset URLs with query strings and hashes', () => {
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.mp4?version=1')).toBe(true);
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.webm#preview')).toBe(true);
+    expect(isVideoAssetUrl('/characters/agent/emotions/idle.mov?token=abc#clip')).toBe(true);
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.ogg?cache=bust')).toBe(true);
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.ogv#loop')).toBe(true);
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.png?format=webp')).toBe(false);
+  });
+
+  it('detects image asset URLs with query strings and hashes', () => {
+    expect(isImageAssetUrl('https://cdn.example.com/avatar.jpg?version=1')).toBe(true);
+    expect(isImageAssetUrl('https://cdn.example.com/avatar.png#preview')).toBe(true);
+    expect(isImageAssetUrl('https://cdn.example.com/avatar.jpeg?format=webp')).toBe(true);
+    expect(isImageAssetUrl('https://cdn.example.com/avatar.webp')).toBe(true);
+    expect(isImageAssetUrl('https://cdn.example.com/avatar.gif?v=2')).toBe(true);
+    expect(isImageAssetUrl('https://cdn.example.com/avatar.mp4?token=abc')).toBe(false);
+  });
+
+  it('detects image data: URLs', () => {
+    expect(isImageAssetUrl('data:image/png;base64,iVBORw0KGgo=')).toBe(true);
+    expect(isImageAssetUrl('data:image/jpeg;base64,/9j/4AAQ')).toBe(true);
+    expect(isImageAssetUrl('data:image/gif;base64,R0lGODlh')).toBe(true);
+  });
+
+  it('detects video data: URLs', () => {
+    expect(isVideoAssetUrl('data:video/mp4;base64,AAAAHGZ0eXBpc29tAA==')).toBe(true);
+    expect(isVideoAssetUrl('data:video/webm;base64,AAAAHGZ0eXBpc29tAA==')).toBe(true);
+  });
+
+  it('accepts .jpeg extension for external URLs', () => {
+    expect(isImageAssetUrl('https://cdn.example.com/photo.jpeg')).toBe(true);
+    expect(isImageAssetUrl('https://cdn.example.com/photo.jpg?size=large')).toBe(true);
   });
 
   it('rejects unsupported MIME types before storage', async () => {
