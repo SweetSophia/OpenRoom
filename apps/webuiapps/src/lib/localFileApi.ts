@@ -74,12 +74,20 @@ export const createLocalFileApi = (): FileOperations & {
     }
 
     let content = node.content;
-    const mimeType = node.metadata?.mimeType;
-    if (mimeType && typeof content === 'string' && content.length > 0) {
-      const isDataUrl = content.startsWith('data:');
-      const isBase64 = /^[A-Za-z0-9+/=]+$/.test(content.replace(/\s/g, ''));
-      if (!isDataUrl && isBase64 && content.length % 4 === 0) {
-        content = `data:${mimeType};base64,${content}`;
+    const mimeType = node.metadata?.mimeType as string | undefined;
+    if (
+      mimeType &&
+      (mimeType.startsWith('image/') ||
+        mimeType.startsWith('video/') ||
+        mimeType.startsWith('audio/'))
+    ) {
+      const isDataUrl = typeof content === 'string' && content.startsWith('data:');
+      const isBase64Like =
+        typeof content === 'string' &&
+        /^[A-Za-z0-9+/= \n\r]+$/.test(content) &&
+        content.length > 16;
+      if (!isDataUrl && isBase64Like) {
+        content = `data:${mimeType};base64,${content.trim()}`;
       }
     }
 

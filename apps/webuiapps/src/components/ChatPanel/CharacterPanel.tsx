@@ -7,8 +7,15 @@ import {
   generateCharacterId,
   getCharacterList,
 } from '@/lib/characterManager';
+import { useResolvedAssetUrl } from '@/hooks/useResolvedAssetUrl';
 import ImageUploader from './ImageUploader';
 import styles from './panel.module.scss';
+
+const CharacterAvatarThumb: React.FC<{ url?: string; name: string }> = ({ url, name }) => {
+  const resolvedUrl = useResolvedAssetUrl(url);
+  if (!resolvedUrl) return <span>{name.charAt(0)}</span>;
+  return <img src={resolvedUrl} alt={name} />;
+};
 
 interface CharacterPanelProps {
   collection: CharacterCollection;
@@ -87,11 +94,10 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
                 onClick={() => handleSelect(char.id)}
               >
                 <div className={styles.listItemAvatar}>
-                  {char.character_meta_info?.base_image_url ? (
-                    <img src={char.character_meta_info.base_image_url} alt={char.character_name} />
-                  ) : (
-                    <span>{char.character_name.charAt(0)}</span>
-                  )}
+                  <CharacterAvatarThumb
+                    url={char.character_meta_info?.base_image_url}
+                    name={char.character_name}
+                  />
                 </div>
                 <div className={styles.listItemInfo}>
                   <div className={styles.listItemName}>{char.character_name}</div>

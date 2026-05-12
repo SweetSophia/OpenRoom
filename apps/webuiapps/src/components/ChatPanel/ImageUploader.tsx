@@ -25,25 +25,38 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [dragover, setDragover] = useState(false);
   const [isVideo, setIsVideo] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const expectedUrlRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (currentUrl) {
-      resolvePreviewUrl(currentUrl);
-    } else {
-      setPreviewUrl(null);
-    }
-  }, [currentUrl]);
+    expectedUrlRef.current = currentUrl;
 
-  const resolvePreviewUrl = async (path: string) => {
-    const isVid = VIDEO_REGEX.test(path);
-    setIsVideo(isVid);
-    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
-      setPreviewUrl(path);
-    } else {
-      const url = await getCharacterAssetUrl(path);
-      setPreviewUrl(url);
+    if (!currentUrl) {
+      setPreviewUrl(null);
+      return;
     }
-  };
+
+    let cancelled = false;
+    const isVid = VIDEO_REGEX.test(currentUrl);
+    setIsVideo(isVid);
+
+    if (
+      currentUrl.startsWith('http://') ||
+      currentUrl.startsWith('https://') ||
+      currentUrl.startsWith('data:')
+    ) {
+      if (!cancelled) setPreviewUrl(currentUrl);
+    } else {
+      getCharacterAssetUrl(currentUrl).then((url) => {
+        if (!cancelled && expectedUrlRef.current === currentUrl) {
+          setPreviewUrl(url);
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUrl]);
 
   const handleFile = async (file: File) => {
     const isVid = VIDEO_REGEX.test(file.name) || file.type.startsWith('video/');
@@ -52,11 +65,19 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     try {
       const type = isVid ? 'video' : 'image';
       const path = await uploadCharacterAsset(characterId, emotion, file, type);
-      await resolvePreviewUrl(path);
+      if (expectedUrlRef.current === path || !expectedUrlRef.current) {
+        const isVidLocal = VIDEO_REGEX.test(path) || file.type.startsWith('video/');
+        setIsVideo(isVidLocal);
+        if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+          setPreviewUrl(path);
+        } else {
+          const url = await getCharacterAssetUrl(path);
+          setPreviewUrl(url);
+        }
+      }
       onUpload(path);
     } catch (err) {
-      console.warn('Upload failed:', err);
-      console.error('Failed to upload asset:', err);
+      console.warn('Failed to upload asset:', err);
     } finally {
       setUploading(false);
     }

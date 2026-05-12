@@ -7,6 +7,14 @@ import { putBinaryFile, getBinaryFile } from './diskStorage';
 
 const CHARACTER_ASSETS_PATH = '/characters';
 
+function sanitizePathComponent(input: string): string {
+  return input
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/\.\./g, '_')
+    .slice(0, 64)
+    .replace(/^_+|_+$/g, '');
+}
+
 /**
  * Convert a File object to base64 string
  */
@@ -36,6 +44,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'video/mp4': 'mp4',
   'video/webm': 'webm',
   'video/ogg': 'ogv',
+  'video/quicktime': 'mov',
 };
 
 function getExtension(mimeType: string): string {
@@ -57,7 +66,9 @@ export async function uploadCharacterAsset(
   _type: 'image' | 'video',
 ): Promise<string> {
   const ext = getExtension(file.type);
-  const storagePath = `${CHARACTER_ASSETS_PATH}/${characterId}/emotions/${emotion}.${ext}`;
+  const sanitizedCharacterId = sanitizePathComponent(characterId);
+  const sanitizedEmotion = sanitizePathComponent(emotion);
+  const storagePath = `${CHARACTER_ASSETS_PATH}/${sanitizedCharacterId}/emotions/${sanitizedEmotion}.${ext}`;
   const base64 = await fileToBase64(file);
   await putBinaryFile(storagePath, base64, file.type);
   return storagePath;
