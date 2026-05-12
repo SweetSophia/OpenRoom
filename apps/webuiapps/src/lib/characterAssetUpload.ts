@@ -32,6 +32,9 @@ const LOCAL_CHARACTER_ASSET_PATH_PATTERN = new RegExp(
 );
 let fallbackUniqueAssetId = 0;
 
+const CHARACTER_IMAGE_EXTENSIONS = new Set(Object.values(CHARACTER_IMAGE_MIME_TO_EXT));
+const CHARACTER_VIDEO_EXTENSIONS = new Set([...Object.values(CHARACTER_VIDEO_MIME_TO_EXT), 'ogg']);
+
 type CharacterAssetType = 'image' | 'video';
 
 function sanitizePathComponent(input: string): string {
@@ -125,6 +128,22 @@ function parseLocalCharacterAssetPath(path?: string): { ext: string } | undefine
   const ext = match[3].toLowerCase();
   if (!ALLOWED_CHARACTER_ASSET_EXTENSIONS.has(ext)) return undefined;
   return { ext };
+}
+
+function getAssetUrlExtension(url?: string): string | undefined {
+  const pathname = url?.trim().split(/[?#]/, 1)[0];
+  const extension = pathname?.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase();
+  return extension;
+}
+
+export function isVideoAssetUrl(url?: string): boolean {
+  const extension = getAssetUrlExtension(url);
+  return !!extension && CHARACTER_VIDEO_EXTENSIONS.has(extension);
+}
+
+export function isImageAssetUrl(url?: string): boolean {
+  const extension = getAssetUrlExtension(url);
+  return !!extension && CHARACTER_IMAGE_EXTENSIONS.has(extension);
 }
 
 export function isExternalOrDataUrl(path: string): boolean {

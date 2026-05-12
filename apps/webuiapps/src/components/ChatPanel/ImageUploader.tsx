@@ -4,10 +4,9 @@ import {
   uploadCharacterAsset,
   getCharacterAssetUrl,
   isExternalOrDataUrl,
+  isVideoAssetUrl,
 } from '@/lib/characterAssetUpload';
 import styles from './panel.module.scss';
-
-const VIDEO_REGEX = /\.(mp4|webm|mov|ogg)(\?|$)/i;
 
 interface ImageUploaderProps {
   characterId: string;
@@ -43,7 +42,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     }
 
     let cancelled = false;
-    const isVid = VIDEO_REGEX.test(currentUrl);
+    const isVid = isVideoAssetUrl(currentUrl);
     setIsVideo(isVid);
 
     if (isExternalOrDataUrl(currentUrl)) {
@@ -62,7 +61,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   }, [currentUrl]);
 
   const handleFile = async (file: File) => {
-    const isVid = VIDEO_REGEX.test(file.name) || file.type.startsWith('video/');
+    const isVid = file.type.startsWith('video/') || isVideoAssetUrl(file.name);
     setIsVideo(isVid);
     setUploading(true);
     setError(null);
@@ -70,7 +69,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       const type = isVid ? 'video' : 'image';
       const path = await uploadCharacterAsset(characterId, emotion, file, type);
       if (expectedUrlRef.current === path || !expectedUrlRef.current) {
-        const isVidLocal = VIDEO_REGEX.test(path) || file.type.startsWith('video/');
+        const isVidLocal = file.type.startsWith('video/') || isVideoAssetUrl(path);
         setIsVideo(isVidLocal);
         if (isExternalOrDataUrl(path)) {
           setPreviewUrl(path);

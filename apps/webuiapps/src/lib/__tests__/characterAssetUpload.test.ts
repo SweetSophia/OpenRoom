@@ -11,6 +11,7 @@ import {
   CHARACTER_VIDEO_MIME_TO_EXT,
   getCharacterAssetKind,
   getCharacterAssetUrl,
+  isVideoAssetUrl,
   isLocalCharacterAssetPath,
   MAX_CHARACTER_VIDEO_BYTES,
   uploadCharacterAsset,
@@ -105,6 +106,15 @@ describe('characterAssetUpload', () => {
 
     expect(isLocalCharacterAssetPath(path)).toBe(true);
     expect(getCharacterAssetKind(path)).toBe(type);
+  });
+
+  it('detects video asset URLs with query strings and hashes', () => {
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.mp4?version=1')).toBe(true);
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.webm#preview')).toBe(true);
+    expect(isVideoAssetUrl('/characters/agent/emotions/idle.mov?token=abc#clip')).toBe(true);
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.ogg?cache=bust')).toBe(true);
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.ogv#loop')).toBe(true);
+    expect(isVideoAssetUrl('https://cdn.example.com/avatar.png?format=webp')).toBe(false);
   });
 
   it('rejects unsupported MIME types before storage', async () => {

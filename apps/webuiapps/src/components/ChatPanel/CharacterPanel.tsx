@@ -7,12 +7,10 @@ import {
   generateCharacterId,
   getCharacterList,
 } from '@/lib/characterManager';
-import { deleteCharacterAsset } from '@/lib/characterAssetUpload';
+import { deleteCharacterAsset, isVideoAssetUrl } from '@/lib/characterAssetUpload';
 import { useResolvedAssetUrl } from '@/hooks/useResolvedAssetUrl';
 import ImageUploader from './ImageUploader';
 import styles from './panel.module.scss';
-
-const VIDEO_REGEX = /\.(mp4|webm|mov|ogg)(\?|$)/i;
 
 async function deleteReplacedCharacterAsset(
   previousUrl: string | undefined,
@@ -42,7 +40,7 @@ const CharacterImagePreview: React.FC<{ url: string; name: string }> = ({ url, n
 const EmotionAssetPreview: React.FC<{ url?: string; emotion: string }> = ({ url, emotion }) => {
   const resolvedUrl = useResolvedAssetUrl(url);
   if (!url || !resolvedUrl) return null;
-  return VIDEO_REGEX.test(url) ? (
+  return isVideoAssetUrl(url) ? (
     <video src={resolvedUrl} className={styles.emotionThumb} autoPlay loop muted playsInline />
   ) : (
     <img src={resolvedUrl} alt={emotion} className={styles.emotionThumb} />
@@ -203,18 +201,9 @@ const CharacterEditor: React.FC<{
   const [desc, setDesc] = useState(character.character_desc);
   const [imageUrl, setImageUrl] = useState(character.character_meta_info?.base_image_url || '');
   const [emotions, setEmotions] = useState<string[]>([...character.character_emotion_list]);
-  const [emotionImages, setEmotionImages] = useState<Record<string, string>>(() => {
-    const images: Record<string, string> = { ...character.character_meta_info?.emotion_images };
-    const videos = character.character_meta_info?.emotion_videos;
-    if (videos) {
-      for (const [emotion, urls] of Object.entries(videos)) {
-        if (!images[emotion] && urls?.length) {
-          images[emotion] = urls[0];
-        }
-      }
-    }
-    return images;
-  });
+  const [emotionImages, setEmotionImages] = useState<Record<string, string>>(() => ({
+    ...character.character_meta_info?.emotion_images,
+  }));
   const [emotionVideos, setEmotionVideos] = useState<Record<string, string[]>>(() => ({
     ...character.character_meta_info?.emotion_videos,
   }));
@@ -273,8 +262,24 @@ const CharacterEditor: React.FC<{
     setEmotions([...CHARACTER_EMOTION_LIST]);
   };
 
-  const updateEmotionImage = (emotion: string, url: string) => {
-    setEmotionImages({ ...emotionImages, [emotion]: url });
+  const updateEmotionAssetUrl = (emotion: string, url: string) => {
+    const trimmedUrl = url.trim();
+    const updatedImages = { ...emotionImages };
+    const updatedVideos = { ...emotionVideos };
+
+    delete updatedImages[emotion];
+    delete updatedVideos[emotion];
+
+    if (trimmedUrl) {
+      if (isVideoAssetUrl(trimmedUrl)) {
+        updatedVideos[emotion] = [trimmedUrl];
+      } else {
+        updatedImages[emotion] = trimmedUrl;
+      }
+    }
+
+    setEmotionImages(updatedImages);
+    setEmotionVideos(updatedVideos);
   };
 
   const handleSave = () => {
@@ -420,8 +425,8 @@ const CharacterEditor: React.FC<{
                       </div>
                       <input
                         className={styles.input}
-                        value={emotionImages[e] || ''}
-                        onChange={(ev) => updateEmotionImage(e, ev.target.value)}
+                        value={getEmotionAssetUrl(e) || ''}
+                        onChange={(ev) => updateEmotionAssetUrl(e, ev.target.value)}
                         placeholder={`Image/Video URL for "${e}" (optional)`}
                       />
                     </div>
