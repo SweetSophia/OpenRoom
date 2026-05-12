@@ -69,7 +69,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       const type = isVid ? 'video' : 'image';
       const path = await uploadCharacterAsset(characterId, emotion, file, type);
       if (expectedUrlRef.current === path || !expectedUrlRef.current) {
-        const isVidLocal = isVid;
+const isVidLocal = isVid;
         setIsVideo(isVidLocal);
         if (isExternalOrDataUrl(path)) {
           setPreviewUrl(path);
