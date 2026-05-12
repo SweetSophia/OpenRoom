@@ -18,23 +18,46 @@ import styles from './panel.module.scss';
 
 const CharacterAvatarThumb: React.FC<{ url?: string; name: string }> = ({ url, name }) => {
   const resolvedUrl = useResolvedAssetUrl(url);
-  if (!resolvedUrl) return <span>{name.charAt(0)}</span>;
-  return <img src={resolvedUrl} alt={name} />;
+  const [failedUrl, setFailedUrl] = useState<string>();
+  if (!resolvedUrl || failedUrl === resolvedUrl) return <span>{name.charAt(0)}</span>;
+  return <img src={resolvedUrl} alt={name} onError={() => setFailedUrl(resolvedUrl)} />;
 };
 
 const CharacterImagePreview: React.FC<{ url: string; name: string }> = ({ url, name }) => {
   const resolvedUrl = useResolvedAssetUrl(url);
-  if (!resolvedUrl) return null;
-  return <img src={resolvedUrl} alt={name} className={styles.avatarImg} />;
+  const [failedUrl, setFailedUrl] = useState<string>();
+  if (!resolvedUrl || failedUrl === resolvedUrl) return null;
+  return (
+    <img
+      src={resolvedUrl}
+      alt={name}
+      className={styles.avatarImg}
+      onError={() => setFailedUrl(resolvedUrl)}
+    />
+  );
 };
 
 const EmotionAssetPreview: React.FC<{ url?: string; emotion: string }> = ({ url, emotion }) => {
   const resolvedUrl = useResolvedAssetUrl(url);
-  if (!url || !resolvedUrl) return null;
+  const [failedUrl, setFailedUrl] = useState<string>();
+  if (!url || !resolvedUrl || failedUrl === resolvedUrl) return null;
   return isVideoAssetUrl(url) ? (
-    <video src={resolvedUrl} className={styles.emotionThumb} autoPlay loop muted playsInline />
+    <video
+      src={resolvedUrl}
+      className={styles.emotionThumb}
+      autoPlay
+      loop
+      muted
+      playsInline
+      onError={() => setFailedUrl(resolvedUrl)}
+    />
   ) : (
-    <img src={resolvedUrl} alt={emotion} className={styles.emotionThumb} />
+    <img
+      src={resolvedUrl}
+      alt={emotion}
+      className={styles.emotionThumb}
+      onError={() => setFailedUrl(resolvedUrl)}
+    />
   );
 };
 
