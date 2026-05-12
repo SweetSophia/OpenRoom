@@ -11,6 +11,7 @@ import {
   deleteCharacterAsset,
   isLocalCharacterAssetPath,
   isVideoAssetUrl,
+  sanitizeCharacterAssetTestIdPart,
 } from '@/lib/characterAssetUpload';
 import { useResolvedAssetUrl } from '@/hooks/useResolvedAssetUrl';
 import ImageUploader from './ImageUploader';
@@ -133,6 +134,12 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
     setCol({ ...col, activeId: id });
   };
 
+  const handleSelectKeyDown = (event: React.KeyboardEvent, id: string) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handleSelect(id);
+  };
+
   const handleDelete = (id: string) => {
     if (characters.length <= 1) return;
     const deletedCharacter = col.items[id];
@@ -201,11 +208,15 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
   }
 
   return (
-    <div className={styles.overlay} onClick={handleCancel}>
+    <div className={styles.overlay} onClick={handleCancel} data-testid="character-panel">
       <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
         <div className={styles.panelHeader}>
           <span className={styles.panelTitle}>Characters</span>
-          <button className={styles.closeBtn} onClick={handleCancel}>
+          <button
+            className={styles.closeBtn}
+            onClick={handleCancel}
+            aria-label="Close character panel"
+          >
             <X size={18} />
           </button>
         </div>
@@ -217,6 +228,11 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
                 key={char.id}
                 className={`${styles.listItem} ${char.id === activeId ? styles.listItemActive : ''}`}
                 onClick={() => handleSelect(char.id)}
+                onKeyDown={(event) => handleSelectKeyDown(event, char.id)}
+                role="button"
+                tabIndex={0}
+                aria-selected={char.id === activeId}
+                data-testid={`character-row-${char.id}`}
               >
                 <div className={styles.listItemAvatar}>
                   <CharacterAvatarThumb
@@ -254,6 +270,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
                         handleDelete(char.id);
                       }}
                       title="Delete"
+                      aria-label={`Delete ${char.character_name}`}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -269,10 +286,18 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
             <Plus size={14} /> New Character
           </button>
           <div style={{ flex: 1 }} />
-          <button className={styles.cancelBtn} onClick={handleCancel}>
+          <button
+            className={styles.cancelBtn}
+            onClick={handleCancel}
+            data-testid="character-panel-cancel"
+          >
             Cancel
           </button>
-          <button className={styles.saveBtn} onClick={handleSave}>
+          <button
+            className={styles.saveBtn}
+            onClick={handleSave}
+            data-testid="character-panel-save"
+          >
             Save
           </button>
         </div>
@@ -448,11 +473,15 @@ const CharacterEditor: React.FC<{
   };
 
   return (
-    <div className={styles.overlay} onClick={handleClose}>
+    <div className={styles.overlay} onClick={handleClose} data-testid="character-editor">
       <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
         <div className={styles.panelHeader}>
           <span className={styles.panelTitle}>Edit Character</span>
-          <button className={styles.closeBtn} onClick={handleClose}>
+          <button
+            className={styles.closeBtn}
+            onClick={handleClose}
+            aria-label="Close character editor"
+          >
             <X size={18} />
           </button>
         </div>
@@ -462,12 +491,14 @@ const CharacterEditor: React.FC<{
             <button
               className={`${styles.tab} ${activeTab === 'details' ? styles.tabActive : ''}`}
               onClick={() => setActiveTab('details')}
+              data-testid="character-editor-tab-details"
             >
               Details
             </button>
             <button
               className={`${styles.tab} ${activeTab === 'assets' ? styles.tabActive : ''}`}
               onClick={() => setActiveTab('assets')}
+              data-testid="character-editor-tab-assets"
             >
               Assets
             </button>
@@ -519,6 +550,7 @@ const CharacterEditor: React.FC<{
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
                   placeholder="https://... or upload below"
+                  data-testid="character-default-avatar-input"
                 />
                 <div style={{ marginTop: 8 }}>
                   <ImageUploader
@@ -550,6 +582,8 @@ const CharacterEditor: React.FC<{
                           <button
                             className={styles.emotionRemove}
                             onClick={() => handleRemoveEmotion(e)}
+                            aria-label={`Remove ${e} emotion`}
+                            data-testid={`character-emotion-remove-${sanitizeCharacterAssetTestIdPart(e)}`}
                           >
                             <Trash2 size={10} />
                           </button>
@@ -561,6 +595,7 @@ const CharacterEditor: React.FC<{
                         value={getEmotionAssetUrl(e) || ''}
                         onChange={(ev) => updateEmotionAssetUrl(e, ev.target.value)}
                         placeholder={`Image/Video URL for "${e}" (optional)`}
+                        data-testid={`character-emotion-url-${sanitizeCharacterAssetTestIdPart(e)}`}
                       />
                     </div>
                   ))}
@@ -573,7 +608,11 @@ const CharacterEditor: React.FC<{
                     onKeyDown={(e) => e.key === 'Enter' && handleAddEmotion()}
                     placeholder="Add emotion..."
                   />
-                  <button className={styles.addBtn} onClick={handleAddEmotion}>
+                  <button
+                    className={styles.addBtn}
+                    onClick={handleAddEmotion}
+                    aria-label="Add emotion"
+                  >
                     <Plus size={14} />
                   </button>
                 </div>
@@ -603,10 +642,18 @@ const CharacterEditor: React.FC<{
         </div>
 
         <div className={styles.panelFooter}>
-          <button className={styles.cancelBtn} onClick={handleClose}>
+          <button
+            className={styles.cancelBtn}
+            onClick={handleClose}
+            data-testid="character-editor-back"
+          >
             Back
           </button>
-          <button className={styles.saveBtn} onClick={handleSave}>
+          <button
+            className={styles.saveBtn}
+            onClick={handleSave}
+            data-testid="character-editor-done"
+          >
             Done
           </button>
         </div>

@@ -18,6 +18,7 @@ import {
   MAX_CHARACTER_VIDEO_BYTES,
   uploadCharacterAsset,
   deleteCharacterAsset,
+  sanitizeCharacterAssetTestIdPart,
 } from '../characterAssetUpload';
 import { buildFileUrl, deleteFilesByPaths, getBinaryFile, putBinaryFile } from '../diskStorage';
 
@@ -277,5 +278,11 @@ describe('characterAssetUpload', () => {
     ).rejects.toThrow('Character video asset exceeds');
 
     expect(mockPutBinaryFile).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes emotion names for stable upload test ids', () => {
+    expect(sanitizeCharacterAssetTestIdPart('Happy Face')).toBe('happy-face');
+    expect(sanitizeCharacterAssetTestIdPart(' idle/video ')).toBe('idle-video');
+    expect(sanitizeCharacterAssetTestIdPart('...')).toBe('unknown');
   });
 });

@@ -53,6 +53,11 @@
     color: rgba(255, 255, 255, 0.9);
     background: rgba(255, 255, 255, 0.06);
   }
+
+  &:focus-visible {
+    outline: 2px solid rgba(250, 234, 95, 0.7);
+    outline-offset: 2px;
+  }
 }
 
 .panelBody {
@@ -350,7 +355,10 @@
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px dashed rgba(255, 255, 255, 0.15);
+  color: inherit;
   cursor: pointer;
+  font: inherit;
+  padding: 0;
   transition:
     border-color 0.15s,
     background 0.15s;
@@ -358,6 +366,15 @@
   &:hover {
     border-color: rgba(250, 234, 95, 0.3);
     background: rgba(250, 234, 95, 0.04);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(250, 234, 95, 0.7);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: progress;
   }
 }
 
@@ -405,6 +422,11 @@
   &:hover {
     background: rgba(255, 63, 77, 0.6);
     color: #fff;
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(250, 234, 95, 0.7);
+    outline-offset: 2px;
   }
 }
 
@@ -636,6 +658,11 @@
     background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.1);
   }
+
+  &:focus-visible {
+    outline: 2px solid rgba(250, 234, 95, 0.7);
+    outline-offset: 2px;
+  }
 }
 
 .listItemActive {
@@ -709,6 +736,11 @@
   &:hover {
     color: rgba(255, 255, 255, 0.8);
     border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(250, 234, 95, 0.7);
+    outline-offset: 2px;
   }
 }
 
