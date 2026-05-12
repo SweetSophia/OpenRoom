@@ -109,7 +109,6 @@ function createUniqueAssetFilename(safeEmotion: string, ext: string): string {
   } else {
     random = `${Date.now()}-${fallbackUniqueAssetId++}`;
   }
-
   return `${safeEmotion}-${Date.now()}-${random}.${ext}`;
 }
 
