@@ -111,6 +111,7 @@ export const CharacterAvatar: React.FC<{
     media ? [{ url: media.url, type: media.type, active: true }] : [],
   );
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+  const [failedUrls, setFailedUrls] = useState<Set<string>>(() => new Set());
   const activeUrl = layers.find((l) => l.active)?.url;
   const cleanupRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -128,7 +129,7 @@ export const CharacterAvatar: React.FC<{
         if (isExternalOrDataUrl(layer.url)) {
           resolved[layer.url] = layer.url;
         } else {
-          const resolvedUrl = await getCharacterAssetUrl(layer.url);
+          const resolvedUrl = await Promise.resolve(getCharacterAssetUrl(layer.url));
           if (resolvedUrl) resolved[layer.url] = resolvedUrl;
         }
       }
@@ -145,6 +146,7 @@ export const CharacterAvatar: React.FC<{
       setLayers([]);
       return;
     }
+    if (failedUrls.has(media.url)) return;
     if (media.url === activeUrl) return;
     setLayers((prev) => {
       // If the URL already exists (possibly inactive), reactivate it
@@ -162,7 +164,7 @@ export const CharacterAvatar: React.FC<{
       }
       return [...prev, { url: media.url, type: media.type, active: false }];
     });
-  }, [media?.url, activeUrl]);
+  }, [media?.url, activeUrl, failedUrls]);
 
   const handleMediaReady = useCallback((readyUrl: string) => {
     setLayers((prev) => {
@@ -175,20 +177,44 @@ export const CharacterAvatar: React.FC<{
     });
   }, []);
 
-  if (layers.length === 0) {
+  const handleMediaError = useCallback((failedUrl: string) => {
+    setFailedUrls((current) => new Set(current).add(failedUrl));
+    setResolvedUrls((current) => {
+      const next = { ...current };
+      delete next[failedUrl];
+      return next;
+    });
+    setLayers((prev) => {
+      const remaining = prev.filter((l) => l.url !== failedUrl);
+      if (remaining.some((l) => l.active)) return remaining;
+      const fallback = remaining[remaining.length - 1];
+      return remaining.map((l) => ({ ...l, active: l.url === fallback?.url }));
+    });
+  }, []);
+
+  const renderableLayers = layers
+    .filter((layer) => !failedUrls.has(layer.url))
+    .map((layer) => ({
+      layer,
+      src: resolvedUrls[layer.url] ?? (isExternalOrDataUrl(layer.url) ? layer.url : undefined),
+    }))
+    .filter((item): item is { layer: AvatarLayer; src: string } => !!item.src);
+
+  const hasActiveRenderableLayer = renderableLayers.some(({ layer }) => layer.active);
+
+  if (renderableLayers.length === 0) {
     return <div className={styles.avatarPlaceholder}>{character.character_name.charAt(0)}</div>;
   }
 
   return (
     <>
-      {layers.map((layer) => {
-        const src =
-          resolvedUrls[layer.url] ?? (isExternalOrDataUrl(layer.url) ? layer.url : undefined);
-        if (!src) return null;
+      {renderableLayers.map(({ layer, src }, index) => {
+        const isVisible =
+          layer.active || (!hasActiveRenderableLayer && index === renderableLayers.length - 1);
         const layerStyle: React.CSSProperties = {
           position: 'absolute',
           inset: 0,
-          opacity: layer.active ? 1 : 0,
+          opacity: isVisible ? 1 : 0,
           transition: 'opacity 0.25s ease-out',
         };
         if (layer.type === 'video') {
@@ -204,6 +230,7 @@ export const CharacterAvatar: React.FC<{
               playsInline
               onCanPlay={!layer.active ? () => handleMediaReady(layer.url) : undefined}
               onEnded={layer.active && !isIdle ? onEmotionEnd : undefined}
+              onError={() => handleMediaError(layer.url)}
             />
           );
         }
@@ -215,6 +242,7 @@ export const CharacterAvatar: React.FC<{
             src={src}
             alt={character.character_name}
             onLoad={!layer.active ? () => handleMediaReady(layer.url) : undefined}
+            onError={() => handleMediaError(layer.url)}
           />
         );
       })}

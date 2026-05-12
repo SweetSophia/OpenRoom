@@ -56,7 +56,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     if (isExternalOrDataUrl(currentUrl)) {
       setPreviewUrl(currentUrl);
     } else {
-      getCharacterAssetUrl(currentUrl).then((url) => {
+      Promise.resolve(getCharacterAssetUrl(currentUrl)).then((url) => {
         if (!cancelled && expectedUrlRef.current === currentUrl && url) {
           setPreviewUrl(url);
         }
@@ -97,7 +97,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         if (isExternalOrDataUrl(path)) {
           setPreviewUrl(path);
         } else {
-          const url = await getCharacterAssetUrl(path);
+          const url = await Promise.resolve(getCharacterAssetUrl(path));
           if (!isCurrentUpload()) {
             await cleanupStaleUpload(path);
             return;
@@ -137,6 +137,11 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     onRemove?.();
   };
 
+  const handlePreviewError = () => {
+    setPreviewUrl(null);
+    setError('Preview failed to load. Check the asset and try again.');
+  };
+
   return (
     <div className={styles.assetSlot} aria-busy={uploading}>
       <div className={styles.assetSlotHeader}>
@@ -146,9 +151,22 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       {previewUrl ? (
         <div className={styles.assetPreview}>
           {isVideo ? (
-            <video src={previewUrl} autoPlay loop muted playsInline className={styles.assetMedia} />
+            <video
+              src={previewUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className={styles.assetMedia}
+              onError={handlePreviewError}
+            />
           ) : (
-            <img src={previewUrl} alt={emotion} className={styles.assetMedia} />
+            <img
+              src={previewUrl}
+              alt={emotion}
+              className={styles.assetMedia}
+              onError={handlePreviewError}
+            />
           )}
           <button
             className={styles.assetRemoveBtn}
