@@ -73,8 +73,18 @@ export const createLocalFileApi = (): FileOperations & {
       throw new Error(`File not found: ${path}`);
     }
 
+    let content = node.content;
+    const mimeType = node.metadata?.mimeType;
+    if (mimeType && typeof content === 'string' && content.length > 0) {
+      const isDataUrl = content.startsWith('data:');
+      const isBase64 = /^[A-Za-z0-9+/=]+$/.test(content.replace(/\s/g, ''));
+      if (!isDataUrl && isBase64 && content.length % 4 === 0) {
+        content = `data:${mimeType};base64,${content}`;
+      }
+    }
+
     return {
-      content: node.content,
+      content,
       metadata: node.metadata || {},
     };
   };

@@ -7,6 +7,7 @@ import {
   generateCharacterId,
   getCharacterList,
 } from '@/lib/characterManager';
+import ImageUploader from './ImageUploader';
 import styles from './panel.module.scss';
 
 interface CharacterPanelProps {
@@ -158,6 +159,7 @@ const CharacterEditor: React.FC<{
   onSave: (config: CharacterConfig) => void;
   onClose: () => void;
 }> = ({ character, onSave, onClose }) => {
+  const [activeTab, setActiveTab] = useState<'details' | 'assets'>('details');
   const [name, setName] = useState(character.character_name);
   const [gender, setGender] = useState(character.character_gender_desc);
   const [desc, setDesc] = useState(character.character_desc);
@@ -165,7 +167,6 @@ const CharacterEditor: React.FC<{
   const [emotions, setEmotions] = useState<string[]>([...character.character_emotion_list]);
   const [emotionImages, setEmotionImages] = useState<Record<string, string>>(() => {
     const images: Record<string, string> = { ...character.character_meta_info?.emotion_images };
-    // Populate from emotion_videos (use first video URL) if emotion_images is missing
     const videos = character.character_meta_info?.emotion_videos;
     if (videos) {
       for (const [emotion, urls] of Object.entries(videos)) {
@@ -244,109 +245,161 @@ const CharacterEditor: React.FC<{
         </div>
 
         <div className={styles.panelBody}>
-          {imageUrl && (
-            <div className={styles.avatarPreview}>
-              <img src={imageUrl} alt={name} className={styles.avatarImg} />
-            </div>
-          )}
-
-          <div className={styles.field}>
-            <label className={styles.label}>Name</label>
-            <input
-              className={styles.input}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Character name"
-            />
+          <div className={styles.tabs}>
+            <button
+              className={`${styles.tab} ${activeTab === 'details' ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab('details')}
+            >
+              Details
+            </button>
+            <button
+              className={`${styles.tab} ${activeTab === 'assets' ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab('assets')}
+            >
+              Assets
+            </button>
           </div>
 
-          <div className={styles.field}>
-            <label className={styles.label}>Gender</label>
-            <input
-              className={styles.input}
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              placeholder="female / male / non-binary / ..."
-            />
-          </div>
+          {activeTab === 'details' && (
+            <>
+              {imageUrl && (
+                <div className={styles.avatarPreview}>
+                  <img src={imageUrl} alt={name} className={styles.avatarImg} />
+                </div>
+              )}
 
-          <div className={styles.field}>
-            <label className={styles.label}>Persona Description</label>
-            <textarea
-              className={styles.textarea}
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              rows={6}
-              placeholder="Describe the character's personality, background, speaking style..."
-            />
-          </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Name</label>
+                <input
+                  className={styles.input}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Character name"
+                />
+              </div>
 
-          <div className={styles.field}>
-            <label className={styles.label}>Default Avatar (base image)</label>
-            <input
-              className={styles.input}
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://..."
-            />
-          </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Gender</label>
+                <input
+                  className={styles.input}
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  placeholder="female / male / non-binary / ..."
+                />
+              </div>
 
-          <div className={styles.field}>
-            <label className={styles.label}>
-              Emotions & Expressions
-              <button className={styles.resetLink} onClick={handleResetEmotions}>
-                Reset to defaults
-              </button>
-            </label>
-            <div className={styles.emotionImageList}>
-              {emotions.map((e) => (
-                <div key={e} className={styles.emotionImageRow}>
-                  <div className={styles.emotionImageHeader}>
-                    <span className={styles.emotionTag}>
-                      {e}
-                      <button
-                        className={styles.emotionRemove}
-                        onClick={() => handleRemoveEmotion(e)}
-                      >
-                        <Trash2 size={10} />
-                      </button>
-                    </span>
-                    {emotionImages[e] &&
-                      (/\.(mp4|webm|mov|ogg)(\?|$)/i.test(emotionImages[e]) ? (
-                        <video
-                          src={emotionImages[e]}
-                          className={styles.emotionThumb}
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                        />
-                      ) : (
-                        <img src={emotionImages[e]} alt={e} className={styles.emotionThumb} />
-                      ))}
-                  </div>
-                  <input
-                    className={styles.input}
-                    value={emotionImages[e] || ''}
-                    onChange={(ev) => updateEmotionImage(e, ev.target.value)}
-                    placeholder={`Image/Video URL for "${e}" (optional)`}
+              <div className={styles.field}>
+                <label className={styles.label}>Persona Description</label>
+                <textarea
+                  className={styles.textarea}
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  rows={6}
+                  placeholder="Describe the character's personality, background, speaking style..."
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Default Avatar (base image)</label>
+                <input
+                  className={styles.input}
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://... or upload below"
+                />
+                <div style={{ marginTop: 8 }}>
+                  <ImageUploader
+                    characterId={character.id}
+                    emotion="avatar"
+                    currentUrl={imageUrl}
+                    onUpload={(url) => setImageUrl(url)}
+                    onRemove={() => setImageUrl('')}
                   />
                 </div>
-              ))}
-            </div>
-            <div className={styles.emotionAdd}>
-              <input
-                className={styles.input}
-                value={newEmotion}
-                onChange={(e) => setNewEmotion(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddEmotion()}
-                placeholder="Add emotion..."
-              />
-              <button className={styles.addBtn} onClick={handleAddEmotion}>
-                <Plus size={14} />
-              </button>
-            </div>
-          </div>
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>
+                  Emotions & Expressions
+                  <button className={styles.resetLink} onClick={handleResetEmotions}>
+                    Reset to defaults
+                  </button>
+                </label>
+                <div className={styles.emotionImageList}>
+                  {emotions.map((e) => (
+                    <div key={e} className={styles.emotionImageRow}>
+                      <div className={styles.emotionImageHeader}>
+                        <span className={styles.emotionTag}>
+                          {e}
+                          <button
+                            className={styles.emotionRemove}
+                            onClick={() => handleRemoveEmotion(e)}
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </span>
+                        {emotionImages[e] &&
+                          (/\.(mp4|webm|mov|ogg)(\?|$)/i.test(emotionImages[e]) ? (
+                            <video
+                              src={emotionImages[e]}
+                              className={styles.emotionThumb}
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            <img src={emotionImages[e]} alt={e} className={styles.emotionThumb} />
+                          ))}
+                      </div>
+                      <input
+                        className={styles.input}
+                        value={emotionImages[e] || ''}
+                        onChange={(ev) => updateEmotionImage(e, ev.target.value)}
+                        placeholder={`Image/Video URL for "${e}" (optional)`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.emotionAdd}>
+                  <input
+                    className={styles.input}
+                    value={newEmotion}
+                    onChange={(e) => setNewEmotion(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddEmotion()}
+                    placeholder="Add emotion..."
+                  />
+                  <button className={styles.addBtn} onClick={handleAddEmotion}>
+                    <Plus size={14} />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'assets' && (
+            <>
+              <div className={styles.field}>
+                <label className={styles.label}>Emotion Assets</label>
+                <div className={styles.assetGrid}>
+                  {emotions.map((e) => (
+                    <ImageUploader
+                      key={e}
+                      characterId={character.id}
+                      emotion={e}
+                      currentUrl={emotionImages[e]}
+                      onUpload={(url) => updateEmotionImage(e, url)}
+                      onRemove={() => {
+                        const updated = { ...emotionImages };
+                        delete updated[e];
+                        setEmotionImages(updated);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className={styles.panelFooter}>

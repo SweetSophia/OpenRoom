@@ -125,6 +125,29 @@ export async function deleteFilesByPaths(data: { file_paths: string[] }): Promis
 }
 
 /**
+ * Read a binary file (e.g. image) and return as base64 string.
+ * Returns { base64, mimeType } or null if not found.
+ */
+export async function getBinaryFile(
+  filePath: string,
+): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    const res = await fetch(apiUrl(filePath));
+    if (!res.ok) return null;
+    const mimeType = res.headers.get('Content-Type') || 'application/octet-stream';
+    const blob = await res.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    const binary = String.fromCharCode(...bytes);
+    const base64 = btoa(binary);
+    return { base64, mimeType };
+  } catch (e) {
+    console.warn('[diskStorage] getBinaryFile failed:', e);
+    return null;
+  }
+}
+
+/**
  * Search files by query string (filename match).
  */
 export async function searchFiles(data: { query: string }): Promise<unknown[]> {
