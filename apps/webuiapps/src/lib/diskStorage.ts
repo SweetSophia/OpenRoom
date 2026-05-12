@@ -135,7 +135,7 @@ function uint8ToBase64(bytes: Uint8Array): string {
     const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
     result += String.fromCharCode(...chunk);
   }
-  return result;
+  return btoa(result);
 }
 
 export async function getBinaryFile(

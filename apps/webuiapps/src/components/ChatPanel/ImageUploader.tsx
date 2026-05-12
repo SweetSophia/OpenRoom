@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X } from 'lucide-react';
-import { uploadCharacterAsset, getCharacterAssetUrl } from '@/lib/characterAssetUpload';
+import {
+  uploadCharacterAsset,
+  getCharacterAssetUrl,
+  isExternalOrDataUrl,
+} from '@/lib/characterAssetUpload';
 import styles from './panel.module.scss';
 
 const VIDEO_REGEX = /\.(mp4|webm|mov|ogg)(\?|$)/i;
@@ -9,8 +13,9 @@ interface ImageUploaderProps {
   characterId: string;
   emotion: string;
   currentUrl?: string;
-  onUpload: (url: string) => void;
+  onUpload: (url: string, type: 'image' | 'video') => void;
   onRemove?: () => void;
+  accept?: string;
 }
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({
@@ -19,11 +24,13 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   currentUrl,
   onUpload,
   onRemove,
+  accept = 'image/*,video/*',
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dragover, setDragover] = useState(false);
   const [isVideo, setIsVideo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const expectedUrlRef = useRef<string | undefined>(undefined);
 
@@ -39,15 +46,11 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     const isVid = VIDEO_REGEX.test(currentUrl);
     setIsVideo(isVid);
 
-    if (
-      currentUrl.startsWith('http://') ||
-      currentUrl.startsWith('https://') ||
-      currentUrl.startsWith('data:')
-    ) {
-      if (!cancelled) setPreviewUrl(currentUrl);
+    if (isExternalOrDataUrl(currentUrl)) {
+      setPreviewUrl(currentUrl);
     } else {
       getCharacterAssetUrl(currentUrl).then((url) => {
-        if (!cancelled && expectedUrlRef.current === currentUrl) {
+        if (!cancelled && expectedUrlRef.current === currentUrl && url) {
           setPreviewUrl(url);
         }
       });
@@ -62,22 +65,24 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     const isVid = VIDEO_REGEX.test(file.name) || file.type.startsWith('video/');
     setIsVideo(isVid);
     setUploading(true);
+    setError(null);
     try {
       const type = isVid ? 'video' : 'image';
       const path = await uploadCharacterAsset(characterId, emotion, file, type);
       if (expectedUrlRef.current === path || !expectedUrlRef.current) {
         const isVidLocal = VIDEO_REGEX.test(path) || file.type.startsWith('video/');
         setIsVideo(isVidLocal);
-        if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+        if (isExternalOrDataUrl(path)) {
           setPreviewUrl(path);
         } else {
           const url = await getCharacterAssetUrl(path);
-          setPreviewUrl(url);
+          setPreviewUrl(url ?? null);
         }
       }
-      onUpload(path);
+      onUpload(path, type);
     } catch (err) {
       console.warn('Failed to upload asset:', err);
+      setError('Upload failed. Check file size/type and try again.');
     } finally {
       setUploading(false);
     }
@@ -93,6 +98,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const handleRemove = () => {
     setPreviewUrl(null);
     setIsVideo(false);
+    setError(null);
     if (inputRef.current) inputRef.current.value = '';
     onRemove?.();
   };
@@ -136,7 +142,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           <input
             ref={inputRef}
             type="file"
-            accept="image/*,video/*"
+            accept={accept}
             className={styles.assetHiddenInput}
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -145,6 +151,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           />
         </div>
       )}
+      {error && <div className={styles.assetError}>{error}</div>}
     </div>
   );
 };

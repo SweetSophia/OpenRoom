@@ -3,7 +3,7 @@
  * Handles image/video uploads for character avatars
  */
 
-import { putBinaryFile, getBinaryFile } from './diskStorage';
+import { putBinaryFile, getBinaryFile, deleteFilesByPaths } from './diskStorage';
 
 const CHARACTER_ASSETS_PATH = '/characters';
 
@@ -51,8 +51,17 @@ function getExtension(mimeType: string): string {
   return MIME_TO_EXT[mimeType] || 'bin';
 }
 
-function isExternalUrl(path: string): boolean {
+export function isExternalOrDataUrl(path: string): boolean {
   return path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:');
+}
+
+export function isLocalCharacterAssetPath(path?: string): boolean {
+  return !!path && !isExternalOrDataUrl(path) && path.startsWith(`${CHARACTER_ASSETS_PATH}/`);
+}
+
+export async function deleteCharacterAsset(path?: string): Promise<void> {
+  if (!isLocalCharacterAssetPath(path)) return;
+  await deleteFilesByPaths({ file_paths: [path] });
 }
 
 /**
@@ -78,13 +87,13 @@ export async function uploadCharacterAsset(
  * Get the display URL for a character asset.
  * Returns data URL for local files, original path for external URLs.
  */
-export async function getCharacterAssetUrl(path: string): Promise<string> {
-  if (isExternalUrl(path)) {
+export async function getCharacterAssetUrl(path: string): Promise<string | undefined> {
+  if (isExternalOrDataUrl(path)) {
     return path;
   }
   const result = await getBinaryFile(path);
   if (result) {
     return `data:${result.mimeType};base64,${result.base64}`;
   }
-  return path;
+  return undefined;
 }

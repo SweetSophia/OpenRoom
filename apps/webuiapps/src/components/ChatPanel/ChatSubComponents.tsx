@@ -8,7 +8,7 @@ import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { CharacterConfig } from '@/lib/characterManager';
 import { resolveEmotionMedia } from '@/lib/characterManager';
-import { getCharacterAssetUrl } from '@/lib/characterAssetUpload';
+import { getCharacterAssetUrl, isExternalOrDataUrl } from '@/lib/characterAssetUpload';
 import type { ModManager } from '@/lib/modManager';
 import styles from './index.module.scss';
 
@@ -125,10 +125,11 @@ export const CharacterAvatar: React.FC<{
     const resolveAll = async () => {
       const resolved: Record<string, string> = {};
       for (const layer of layers) {
-        if (layer.url.startsWith('http') || layer.url.startsWith('data:')) {
+        if (isExternalOrDataUrl(layer.url)) {
           resolved[layer.url] = layer.url;
         } else {
-          resolved[layer.url] = await getCharacterAssetUrl(layer.url);
+          const resolvedUrl = await getCharacterAssetUrl(layer.url);
+          if (resolvedUrl) resolved[layer.url] = resolvedUrl;
         }
       }
       if (mounted) setResolvedUrls(resolved);
@@ -181,6 +182,9 @@ export const CharacterAvatar: React.FC<{
   return (
     <>
       {layers.map((layer) => {
+        const src =
+          resolvedUrls[layer.url] ?? (isExternalOrDataUrl(layer.url) ? layer.url : undefined);
+        if (!src) return null;
         const layerStyle: React.CSSProperties = {
           position: 'absolute',
           inset: 0,
@@ -193,7 +197,7 @@ export const CharacterAvatar: React.FC<{
               key={layer.url}
               className={styles.avatarImage}
               style={layerStyle}
-              src={resolvedUrls[layer.url] || layer.url}
+              src={src}
               autoPlay
               loop={layer.active ? isIdle : false}
               muted
@@ -208,7 +212,7 @@ export const CharacterAvatar: React.FC<{
             key={layer.url}
             className={styles.avatarImage}
             style={layerStyle}
-            src={resolvedUrls[layer.url] || layer.url}
+            src={src}
             alt={character.character_name}
             onLoad={!layer.active ? () => handleMediaReady(layer.url) : undefined}
           />

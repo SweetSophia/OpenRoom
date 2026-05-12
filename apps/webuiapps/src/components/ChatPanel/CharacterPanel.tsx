@@ -7,14 +7,33 @@ import {
   generateCharacterId,
   getCharacterList,
 } from '@/lib/characterManager';
+import { deleteCharacterAsset } from '@/lib/characterAssetUpload';
 import { useResolvedAssetUrl } from '@/hooks/useResolvedAssetUrl';
 import ImageUploader from './ImageUploader';
 import styles from './panel.module.scss';
+
+const VIDEO_REGEX = /\.(mp4|webm|mov|ogg)(\?|$)/i;
 
 const CharacterAvatarThumb: React.FC<{ url?: string; name: string }> = ({ url, name }) => {
   const resolvedUrl = useResolvedAssetUrl(url);
   if (!resolvedUrl) return <span>{name.charAt(0)}</span>;
   return <img src={resolvedUrl} alt={name} />;
+};
+
+const CharacterImagePreview: React.FC<{ url: string; name: string }> = ({ url, name }) => {
+  const resolvedUrl = useResolvedAssetUrl(url);
+  if (!resolvedUrl) return null;
+  return <img src={resolvedUrl} alt={name} className={styles.avatarImg} />;
+};
+
+const EmotionAssetPreview: React.FC<{ url?: string; emotion: string }> = ({ url, emotion }) => {
+  const resolvedUrl = useResolvedAssetUrl(url);
+  if (!url || !resolvedUrl) return null;
+  return VIDEO_REGEX.test(url) ? (
+    <video src={resolvedUrl} className={styles.emotionThumb} autoPlay loop muted playsInline />
+  ) : (
+    <img src={resolvedUrl} alt={emotion} className={styles.emotionThumb} />
+  );
 };
 
 interface CharacterPanelProps {
@@ -196,7 +215,36 @@ const CharacterEditor: React.FC<{
     }
   };
 
+  const getEmotionAssetUrl = (emotion: string) =>
+    emotionVideos[emotion]?.[0] || emotionImages[emotion];
+
+  const handleEmotionAssetUpload = (emotion: string, url: string, type: 'image' | 'video') => {
+    if (type === 'video') {
+      setEmotionVideos({ ...emotionVideos, [emotion]: [url] });
+      const updatedImages = { ...emotionImages };
+      delete updatedImages[emotion];
+      setEmotionImages(updatedImages);
+      return;
+    }
+
+    setEmotionImages({ ...emotionImages, [emotion]: url });
+    const updatedVideos = { ...emotionVideos };
+    delete updatedVideos[emotion];
+    setEmotionVideos(updatedVideos);
+  };
+
+  const handleEmotionAssetRemove = async (emotion: string) => {
+    await deleteCharacterAsset(getEmotionAssetUrl(emotion));
+    const updatedImages = { ...emotionImages };
+    delete updatedImages[emotion];
+    setEmotionImages(updatedImages);
+    const updatedVideos = { ...emotionVideos };
+    delete updatedVideos[emotion];
+    setEmotionVideos(updatedVideos);
+  };
+
   const handleRemoveEmotion = (emotion: string) => {
+    void deleteCharacterAsset(getEmotionAssetUrl(emotion));
     setEmotions(emotions.filter((e) => e !== emotion));
     const updatedImages = { ...emotionImages };
     delete updatedImages[emotion];
@@ -270,7 +318,7 @@ const CharacterEditor: React.FC<{
             <>
               {imageUrl && (
                 <div className={styles.avatarPreview}>
-                  <img src={imageUrl} alt={name} className={styles.avatarImg} />
+                  <CharacterImagePreview url={imageUrl} name={name} />
                 </div>
               )}
 
@@ -318,8 +366,14 @@ const CharacterEditor: React.FC<{
                     characterId={character.id}
                     emotion="avatar"
                     currentUrl={imageUrl}
-                    onUpload={(url) => setImageUrl(url)}
-                    onRemove={() => setImageUrl('')}
+                    accept="image/*"
+                    onUpload={(url, type) => {
+                      if (type === 'image') setImageUrl(url);
+                    }}
+                    onRemove={() => {
+                      void deleteCharacterAsset(imageUrl);
+                      setImageUrl('');
+                    }}
                   />
                 </div>
               </div>
@@ -344,19 +398,7 @@ const CharacterEditor: React.FC<{
                             <Trash2 size={10} />
                           </button>
                         </span>
-                        {emotionImages[e] &&
-                          (/\.(mp4|webm|mov|ogg)(\?|$)/i.test(emotionImages[e]) ? (
-                            <video
-                              src={emotionImages[e]}
-                              className={styles.emotionThumb}
-                              autoPlay
-                              loop
-                              muted
-                              playsInline
-                            />
-                          ) : (
-                            <img src={emotionImages[e]} alt={e} className={styles.emotionThumb} />
-                          ))}
+                        <EmotionAssetPreview url={getEmotionAssetUrl(e)} emotion={e} />
                       </div>
                       <input
                         className={styles.input}
@@ -393,13 +435,9 @@ const CharacterEditor: React.FC<{
                       key={e}
                       characterId={character.id}
                       emotion={e}
-                      currentUrl={emotionImages[e]}
-                      onUpload={(url) => updateEmotionImage(e, url)}
-                      onRemove={() => {
-                        const updated = { ...emotionImages };
-                        delete updated[e];
-                        setEmotionImages(updated);
-                      }}
+                      currentUrl={getEmotionAssetUrl(e)}
+                      onUpload={(url, type) => handleEmotionAssetUpload(e, url, type)}
+                      onRemove={() => void handleEmotionAssetRemove(e)}
                     />
                   ))}
                 </div>

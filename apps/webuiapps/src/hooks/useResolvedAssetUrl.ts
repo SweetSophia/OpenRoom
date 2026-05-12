@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { getCharacterAssetUrl } from '@/lib/characterAssetUpload';
+import { getCharacterAssetUrl, isExternalOrDataUrl } from '@/lib/characterAssetUpload';
 
 export function useResolvedAssetUrl(url: string | undefined): string | undefined {
-  const [resolvedUrl, setResolvedUrl] = useState<string | undefined>(url);
+  const [resolvedUrl, setResolvedUrl] = useState<string | undefined>(() =>
+    url && isExternalOrDataUrl(url) ? url : undefined,
+  );
 
   useEffect(() => {
     if (!url) {
@@ -10,12 +12,13 @@ export function useResolvedAssetUrl(url: string | undefined): string | undefined
       return;
     }
 
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    if (isExternalOrDataUrl(url)) {
       setResolvedUrl(url);
       return;
     }
 
     let mounted = true;
+    setResolvedUrl(undefined);
     getCharacterAssetUrl(url).then((resolved) => {
       if (mounted) {
         setResolvedUrl(resolved);
