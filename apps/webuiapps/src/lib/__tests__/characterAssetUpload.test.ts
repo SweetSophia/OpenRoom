@@ -118,7 +118,7 @@ describe('characterAssetUpload', () => {
     expect(isVideoAssetUrl('https://cdn.example.com/avatar.png?format=webp')).toBe(false);
   });
 
-  it('detects image asset URLs with query strings and hashes', () => {
+it('detects image asset URLs with query strings and hashes', () => {
     expect(isImageAssetUrl('https://cdn.example.com/avatar.jpg?version=1')).toBe(true);
     expect(isImageAssetUrl('https://cdn.example.com/avatar.png#preview')).toBe(true);
     expect(isImageAssetUrl('https://cdn.example.com/avatar.jpeg?format=webp')).toBe(true);

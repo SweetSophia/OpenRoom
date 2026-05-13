@@ -7,7 +7,7 @@ import { putBinaryFile, getBinaryFile, deleteFilesByPaths } from './diskStorage'
 
 const CHARACTER_ASSETS_PATH = '/characters';
 export const MAX_CHARACTER_IMAGE_BYTES = 10 * 1024 * 1024;
-export const MAX_CHARACTER_VIDEO_BYTES = 50 * 1024 * 1024;
+export const MAX_CHARACTER_VIDEO_BYTES = 20 * 1024 * 1024;
 
 export const CHARACTER_IMAGE_MIME_TO_EXT = {
   'image/jpeg': 'jpg',
@@ -109,7 +109,6 @@ function createUniqueAssetFilename(safeEmotion: string, ext: string): string {
   } else {
     random = `${Date.now()}-${fallbackUniqueAssetId++}`;
   }
-
   return `${safeEmotion}-${Date.now()}-${random}.${ext}`;
 }
 
