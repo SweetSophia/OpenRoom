@@ -26,10 +26,7 @@ export const CHARACTER_VIDEO_MIME_TO_EXT = {
 
 const IMAGE_EXTENSIONS = new Set(Object.values(CHARACTER_IMAGE_MIME_TO_EXT));
 const VIDEO_EXTENSIONS = new Set(Object.values(CHARACTER_VIDEO_MIME_TO_EXT));
-const ALLOWED_CHARACTER_ASSET_EXTENSIONS = new Set([
-  ...Object.values(CHARACTER_IMAGE_MIME_TO_EXT),
-  ...Object.values(CHARACTER_VIDEO_MIME_TO_EXT),
-]);
+const ALLOWED_CHARACTER_ASSET_EXTENSIONS = new Set([...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS]);
 const LOCAL_CHARACTER_ASSET_PATH_PATTERN = new RegExp(
   `^${escapeRegExp(CHARACTER_ASSETS_PATH)}/([A-Za-z0-9_-]+)/emotions/([A-Za-z0-9_-]+)\\.([A-Za-z0-9]+)$`,
 );
