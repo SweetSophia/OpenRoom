@@ -6,13 +6,43 @@
 import { putBinaryFile, getBinaryFile, deleteFilesByPaths } from './diskStorage';
 
 const CHARACTER_ASSETS_PATH = '/characters';
+export const MAX_CHARACTER_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_CHARACTER_VIDEO_BYTES = 20 * 1024 * 1024;
+
+export const CHARACTER_IMAGE_MIME_TO_EXT = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+} as const;
+
+export const CHARACTER_VIDEO_MIME_TO_EXT = {
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/ogg': 'ogv',
+  'video/quicktime': 'mov',
+} as const;
+
+const IMAGE_EXTENSIONS = new Set(Object.values(CHARACTER_IMAGE_MIME_TO_EXT));
+const VIDEO_EXTENSIONS = new Set(Object.values(CHARACTER_VIDEO_MIME_TO_EXT));
+const ALLOWED_CHARACTER_ASSET_EXTENSIONS = new Set([...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS]);
+const LOCAL_CHARACTER_ASSET_PATH_PATTERN = new RegExp(
+  `^${escapeRegExp(CHARACTER_ASSETS_PATH)}/([A-Za-z0-9_-]+)/emotions/([A-Za-z0-9_-]+)\\.([A-Za-z0-9]+)$`,
+);
+let fallbackUniqueAssetId = 0;
+
+type CharacterAssetType = 'image' | 'video';
 
 function sanitizePathComponent(input: string): string {
   return input
     .replace(/[^a-zA-Z0-9_-]/g, '_')
-    .replace(/\.\./g, '_')
     .slice(0, 64)
     .replace(/^_+|_+$/g, '');
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -35,28 +65,82 @@ export function fileToBase64(file: File): Promise<string> {
   });
 }
 
-const MIME_TO_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/svg+xml': 'svg',
-  'video/mp4': 'mp4',
-  'video/webm': 'webm',
-  'video/ogg': 'ogv',
-  'video/quicktime': 'mov',
-};
+function getExtension(mimeType: string, type: CharacterAssetType): string {
+  const mimeMap = type === 'image' ? CHARACTER_IMAGE_MIME_TO_EXT : CHARACTER_VIDEO_MIME_TO_EXT;
+  const ext = mimeMap[mimeType as keyof typeof mimeMap];
+  if (!ext) {
+    throw new Error(`Unsupported ${type} MIME type: ${mimeType || 'unknown'}`);
+  }
+  return ext;
+}
 
-function getExtension(mimeType: string): string {
-  return MIME_TO_EXT[mimeType] || 'bin';
+function assertFileSize(file: File, type: CharacterAssetType): void {
+  const maxBytes = type === 'image' ? MAX_CHARACTER_IMAGE_BYTES : MAX_CHARACTER_VIDEO_BYTES;
+  if (file.size > maxBytes) {
+    throw new Error(`Character ${type} asset exceeds ${maxBytes} bytes`);
+  }
+}
+
+function assertSafePathComponent(value: string, label: string): string {
+  const sanitizedValue = sanitizePathComponent(value);
+  if (!sanitizedValue) {
+    throw new Error(`Invalid ${label}`);
+  }
+  return sanitizedValue;
+}
+
+function createUniqueAssetFilename(safeEmotion: string, ext: string): string {
+  const cryptoApi = globalThis.crypto;
+  let random: string;
+
+  if (cryptoApi?.randomUUID) {
+    random = cryptoApi.randomUUID();
+  } else if (cryptoApi?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    cryptoApi.getRandomValues(bytes);
+    random = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  } else {
+    random = `${Date.now()}-${fallbackUniqueAssetId++}`;
+  }
+
+  return `${safeEmotion}-${Date.now()}-${random}.${ext}`;
+}
+
+function containsEncodedTraversal(path: string): boolean {
+  try {
+    return decodeURIComponent(path).includes('..');
+  } catch {
+    return true;
+  }
+}
+
+function parseLocalCharacterAssetPath(path?: string): { ext: string } | undefined {
+  if (!path || isExternalOrDataUrl(path)) return undefined;
+  if (path.includes('\\') || path.includes('//') || path.includes('..')) return undefined;
+  if (containsEncodedTraversal(path)) return undefined;
+
+  const match = path.match(LOCAL_CHARACTER_ASSET_PATH_PATTERN);
+  if (!match) return undefined;
+
+  const ext = match[3].toLowerCase();
+  if (!ALLOWED_CHARACTER_ASSET_EXTENSIONS.has(ext)) return undefined;
+  return { ext };
 }
 
 export function isExternalOrDataUrl(path: string): boolean {
   return path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:');
 }
 
-export function isLocalCharacterAssetPath(path?: string): boolean {
-  return !!path && !isExternalOrDataUrl(path) && path.startsWith(`${CHARACTER_ASSETS_PATH}/`);
+export function isLocalCharacterAssetPath(path?: string): path is string {
+  return !!parseLocalCharacterAssetPath(path);
+}
+
+export function getCharacterAssetKind(path?: string): CharacterAssetType | undefined {
+  const parsedPath = parseLocalCharacterAssetPath(path);
+  if (!parsedPath) return undefined;
+  if (IMAGE_EXTENSIONS.has(parsedPath.ext)) return 'image';
+  if (VIDEO_EXTENSIONS.has(parsedPath.ext)) return 'video';
+  return undefined;
 }
 
 export async function deleteCharacterAsset(path?: string): Promise<void> {
@@ -72,12 +156,14 @@ export async function uploadCharacterAsset(
   characterId: string,
   emotion: string,
   file: File,
-  _type: 'image' | 'video',
+  type: CharacterAssetType,
 ): Promise<string> {
-  const ext = getExtension(file.type);
-  const sanitizedCharacterId = sanitizePathComponent(characterId);
-  const sanitizedEmotion = sanitizePathComponent(emotion);
-  const storagePath = `${CHARACTER_ASSETS_PATH}/${sanitizedCharacterId}/emotions/${sanitizedEmotion}.${ext}`;
+  assertFileSize(file, type);
+  const ext = getExtension(file.type, type);
+  const sanitizedCharacterId = assertSafePathComponent(characterId, 'characterId');
+  const sanitizedEmotion = assertSafePathComponent(emotion, 'emotion');
+  const filename = createUniqueAssetFilename(sanitizedEmotion, ext);
+  const storagePath = `${CHARACTER_ASSETS_PATH}/${sanitizedCharacterId}/emotions/${filename}`;
   const base64 = await fileToBase64(file);
   await putBinaryFile(storagePath, base64, file.type);
   return storagePath;
@@ -90,6 +176,9 @@ export async function uploadCharacterAsset(
 export async function getCharacterAssetUrl(path: string): Promise<string | undefined> {
   if (isExternalOrDataUrl(path)) {
     return path;
+  }
+  if (!isLocalCharacterAssetPath(path)) {
+    return undefined;
   }
   const result = await getBinaryFile(path);
   if (result) {

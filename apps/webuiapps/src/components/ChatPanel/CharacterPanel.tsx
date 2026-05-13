@@ -14,6 +14,19 @@ import styles from './panel.module.scss';
 
 const VIDEO_REGEX = /\.(mp4|webm|mov|ogg)(\?|$)/i;
 
+async function deleteReplacedCharacterAsset(
+  previousUrl: string | undefined,
+  nextUrl: string,
+): Promise<void> {
+  if (!previousUrl || previousUrl === nextUrl) return;
+
+  try {
+    await deleteCharacterAsset(previousUrl);
+  } catch (error) {
+    console.warn('Failed to delete replaced character asset', error);
+  }
+}
+
 const CharacterAvatarThumb: React.FC<{ url?: string; name: string }> = ({ url, name }) => {
   const resolvedUrl = useResolvedAssetUrl(url);
   if (!resolvedUrl) return <span>{name.charAt(0)}</span>;
@@ -219,6 +232,8 @@ const CharacterEditor: React.FC<{
     emotionVideos[emotion]?.[0] || emotionImages[emotion];
 
   const handleEmotionAssetUpload = (emotion: string, url: string, type: 'image' | 'video') => {
+    void deleteReplacedCharacterAsset(getEmotionAssetUrl(emotion), url);
+
     if (type === 'video') {
       setEmotionVideos({ ...emotionVideos, [emotion]: [url] });
       const updatedImages = { ...emotionImages };
@@ -368,7 +383,10 @@ const CharacterEditor: React.FC<{
                     currentUrl={imageUrl}
                     accept="image/*"
                     onUpload={(url, type) => {
-                      if (type === 'image') setImageUrl(url);
+                      if (type === 'image') {
+                        void deleteReplacedCharacterAsset(imageUrl, url);
+                        setImageUrl(url);
+                      }
                     }}
                     onRemove={() => {
                       void deleteCharacterAsset(imageUrl);

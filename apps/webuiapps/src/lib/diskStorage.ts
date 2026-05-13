@@ -106,11 +106,14 @@ export async function putBinaryFile(
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  await fetch(apiUrl(filePath), {
+  const res = await fetch(apiUrl(filePath), {
     method: 'POST',
     headers: { 'Content-Type': mimeType },
     body: bytes,
   });
+  if (!res.ok) {
+    throw new Error(`putBinaryFile failed: ${res.status} ${res.statusText}`);
+  }
 }
 
 export async function deleteFilesByPaths(data: { file_paths: string[] }): Promise<void> {
