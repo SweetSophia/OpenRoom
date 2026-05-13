@@ -97,7 +97,13 @@ const isVidLocal = isVid;
         if (isExternalOrDataUrl(path)) {
           setPreviewUrl(path);
         } else {
-          const url = await getCharacterAssetUrl(path);
+          let url: string | null | undefined;
+          try {
+            url = await getCharacterAssetUrl(path);
+          } catch {
+            await cleanupStaleUpload(path);
+            throw new Error('Failed to retrieve asset URL');
+          }
           if (!isCurrentUpload()) {
             await cleanupStaleUpload(path);
             return;

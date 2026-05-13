@@ -87,13 +87,16 @@ function diffLocalAssetPaths(
 }
 
 async function deleteAssetPaths(paths: Iterable<string>): Promise<void> {
-  for (const path of new Set(paths)) {
-    try {
-      await deleteCharacterAsset(path);
-    } catch (err) {
-      console.warn('Failed to delete character asset:', err);
-    }
-  }
+  const uniquePaths = [...new Set(paths)];
+  await Promise.all(
+    uniquePaths.map(async (path) => {
+      try {
+        await deleteCharacterAsset(path);
+      } catch (err) {
+        console.warn('Failed to delete character asset:', err);
+      }
+    }),
+  );
 }
 
 const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onClose }) => {
@@ -144,9 +147,10 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
   const handleSave = () => {
     onSave(col);
     const referencedPaths = collectCollectionLocalAssetPaths(col);
-    const stagedDeletes = new Set(
-      [...pendingDeleteAssets].filter((path) => !referencedPaths.has(path)),
-    );
+    const stagedDeletes = new Set<string>();
+    for (const path of pendingDeleteAssets) {
+      if (!referencedPaths.has(path)) stagedDeletes.add(path);
+    }
     for (const path of sessionCreatedAssets) {
       if (!referencedPaths.has(path)) stagedDeletes.add(path);
     }
@@ -285,13 +289,19 @@ const CharacterEditor: React.FC<{
 
   const markUploadedAsset = (url: string) => {
     if (!isLocalCharacterAssetPath(url)) return;
-    setCreatedAssets((current) => new Set(current).add(url));
+    setCreatedAssets((current) => {
+      if (current.has(url)) return current;
+      return new Set(current).add(url);
+    });
   };
 
   const markRemovedAsset = (url?: string) => {
     const trimmedUrl = url?.trim();
     if (!trimmedUrl || !isLocalCharacterAssetPath(trimmedUrl)) return;
-    setDeleteOnCommit((current) => new Set(current).add(trimmedUrl));
+    setDeleteOnCommit((current) => {
+      if (current.has(trimmedUrl)) return current;
+      return new Set(current).add(trimmedUrl);
+    });
   };
 
   const handleAddEmotion = () => {
