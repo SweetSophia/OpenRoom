@@ -37,7 +37,6 @@ type CharacterAssetType = 'image' | 'video';
 function sanitizePathComponent(input: string): string {
   return input
     .replace(/[^a-zA-Z0-9_-]/g, '_')
-    .replace(/\.\./g, '_')
     .slice(0, 64)
     .replace(/^_+|_+$/g, '');
 }
