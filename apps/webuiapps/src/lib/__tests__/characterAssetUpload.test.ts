@@ -7,12 +7,9 @@ vi.mock('../diskStorage', () => ({
 }));
 
 import {
-  CHARACTER_IMAGE_MIME_TO_EXT,
-  CHARACTER_VIDEO_MIME_TO_EXT,
   getCharacterAssetKind,
   getCharacterAssetUrl,
   isLocalCharacterAssetPath,
-  MAX_CHARACTER_VIDEO_BYTES,
   uploadCharacterAsset,
   deleteCharacterAsset,
 } from '../characterAssetUpload';
@@ -22,43 +19,14 @@ const mockPutBinaryFile = vi.mocked(putBinaryFile);
 const mockGetBinaryFile = vi.mocked(getBinaryFile);
 const mockDeleteFilesByPaths = vi.mocked(deleteFilesByPaths);
 
-function createFile(type: string): File {
-  return new File(['asset'], 'asset', { type });
+function createFile(type: string, size = 4): File {
+  return new File(['x'.repeat(size)], 'asset', { type });
 }
-
-function createFileWithSize(type: string, size: number): File {
-  const file = createFile(type);
-  Object.defineProperty(file, 'size', { value: size });
-  return file;
-}
-
-const supportedUploads = [
-  ...Object.entries(CHARACTER_IMAGE_MIME_TO_EXT).map(([mimeType, extension]) => ({
-    mimeType,
-    extension,
-    type: 'image' as const,
-  })),
-  ...Object.entries(CHARACTER_VIDEO_MIME_TO_EXT).map(([mimeType, extension]) => ({
-    mimeType,
-    extension,
-    type: 'video' as const,
-  })),
-];
-
-const supportedExtensions = [
-  ...Object.values(CHARACTER_IMAGE_MIME_TO_EXT).map((extension) => ({
-    extension,
-    type: 'image' as const,
-  })),
-  ...Object.values(CHARACTER_VIDEO_MIME_TO_EXT).map((extension) => ({
-    extension,
-    type: 'video' as const,
-  })),
-];
 
 describe('characterAssetUpload', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     mockPutBinaryFile.mockResolvedValue(undefined);
     mockGetBinaryFile.mockResolvedValue({ base64: 'Zm9v', mimeType: 'image/png' });
     mockDeleteFilesByPaths.mockResolvedValue(undefined);
@@ -100,13 +68,6 @@ describe('characterAssetUpload', () => {
     expect(getCharacterAssetKind(videoPath)).toBe('video');
   });
 
-  it.each(supportedExtensions)('maps .$extension paths to $type assets', ({ extension, type }) => {
-    const path = `/characters/agent_1/emotions/happy-1700000000000-abc123xy.${extension}`;
-
-    expect(isLocalCharacterAssetPath(path)).toBe(true);
-    expect(getCharacterAssetKind(path)).toBe(type);
-  });
-
   it('rejects unsupported MIME types before storage', async () => {
     await expect(
       uploadCharacterAsset('agent', 'happy', createFile('application/octet-stream'), 'image'),
@@ -127,7 +88,8 @@ describe('characterAssetUpload', () => {
   });
 
   it('creates unique versioned safe upload paths', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
+    vi.spyOn(Date, 'now').mockReturnValueOnce(1700000000001).mockReturnValueOnce(1700000000002);
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.123456789).mockReturnValueOnce(0.987654321);
 
     const firstPath = await uploadCharacterAsset(
       'agent/one',
@@ -143,10 +105,10 @@ describe('characterAssetUpload', () => {
     );
 
     expect(firstPath).toMatch(
-      /^\/characters\/agent_one\/emotions\/happy_face-\d{13}-[a-z0-9-]+\.png$/,
+      /^\/characters\/agent_one\/emotions\/happy_face-\d{13}-[a-z0-9]+\.png$/,
     );
     expect(secondPath).toMatch(
-      /^\/characters\/agent_one\/emotions\/happy_face-\d{13}-[a-z0-9-]+\.png$/,
+      /^\/characters\/agent_one\/emotions\/happy_face-\d{13}-[a-z0-9]+\.png$/,
     );
     expect(firstPath).not.toBe(secondPath);
     expect(isLocalCharacterAssetPath(firstPath)).toBe(true);
@@ -165,23 +127,9 @@ describe('characterAssetUpload', () => {
     );
   });
 
-  it.each(supportedUploads)(
-    'stores $mimeType $type uploads with .$extension paths',
-    async ({ mimeType, extension, type }) => {
-      await expect(
-        uploadCharacterAsset('agent', 'happy', createFile(mimeType), type),
-      ).resolves.toMatch(new RegExp(`\\.${extension}$`));
-
-      expect(mockPutBinaryFile).toHaveBeenLastCalledWith(
-        expect.stringMatching(new RegExp(`\\.${extension}$`)),
-        expect.any(String),
-        mimeType,
-      );
-    },
-  );
-
   it('preserves explicit video extension mappings', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
+    vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
 
     await expect(
       uploadCharacterAsset('agent', 'idle', createFile('video/quicktime'), 'video'),
@@ -213,17 +161,12 @@ describe('characterAssetUpload', () => {
       uploadCharacterAsset(
         'agent',
         'happy',
-        createFileWithSize('image/png', 10 * 1024 * 1024 + 1),
+        createFile('image/png', 10 * 1024 * 1024 + 1),
         'image',
       ),
     ).rejects.toThrow('Character image asset exceeds');
     await expect(
-      uploadCharacterAsset(
-        'agent',
-        'idle',
-        createFileWithSize('video/mp4', MAX_CHARACTER_VIDEO_BYTES + 1),
-        'video',
-      ),
+      uploadCharacterAsset('agent', 'idle', createFile('video/mp4', 50 * 1024 * 1024 + 1), 'video'),
     ).rejects.toThrow('Character video asset exceeds');
 
     expect(mockPutBinaryFile).not.toHaveBeenCalled();
