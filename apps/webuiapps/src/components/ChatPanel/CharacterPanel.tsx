@@ -259,6 +259,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
                       setEditingId(char.id);
                     }}
                     title="Edit"
+                    data-testid={`character-edit-${char.id}`}
                   >
                     Edit
                   </button>
@@ -271,6 +272,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
                       }}
                       title="Delete"
                       aria-label={`Delete ${char.character_name}`}
+                      data-testid={`character-delete-${char.id}`}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -282,7 +284,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ collection, onSave, onC
         </div>
 
         <div className={styles.panelFooter}>
-          <button className={styles.addBtn} onClick={handleAdd}>
+          <button className={styles.addBtn} onClick={handleAdd} data-testid="character-panel-add">
             <Plus size={14} /> New Character
           </button>
           <div style={{ flex: 1 }} />
