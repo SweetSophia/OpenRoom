@@ -73,8 +73,26 @@ export const createLocalFileApi = (): FileOperations & {
       throw new Error(`File not found: ${path}`);
     }
 
+    let content = node.content;
+    const mimeType = node.metadata?.mimeType as string | undefined;
+    if (
+      mimeType &&
+      (mimeType.startsWith('image/') ||
+        mimeType.startsWith('video/') ||
+        mimeType.startsWith('audio/'))
+    ) {
+      const isDataUrl = typeof content === 'string' && content.startsWith('data:');
+      const isBase64Like =
+        typeof content === 'string' &&
+        /^[A-Za-z0-9+/= \n\r]+$/.test(content) &&
+        content.length > 16;
+      if (!isDataUrl && isBase64Like) {
+        content = `data:${mimeType};base64,${content.trim()}`;
+      }
+    }
+
     return {
-      content: node.content,
+      content,
       metadata: node.metadata || {},
     };
   };

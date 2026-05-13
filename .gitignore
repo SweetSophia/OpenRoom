@@ -21,6 +21,7 @@ web-build
 
 # Claude Code
 CLAUDE.local.md
+AGENTS.md
 .claude/settings.json
 .claude/thinking/
 .claude/worktrees/
