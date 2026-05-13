@@ -25,6 +25,19 @@ async function deleteReplacedCharacterAsset(
   }
 }
 
+async function deleteReplacedCharacterAsset(
+  previousUrl: string | undefined,
+  nextUrl: string,
+): Promise<void> {
+  if (!previousUrl || previousUrl === nextUrl) return;
+
+  try {
+    await deleteCharacterAsset(previousUrl);
+  } catch (error) {
+    console.warn('Failed to delete replaced character asset', error);
+  }
+}
+
 const CharacterAvatarThumb: React.FC<{ url?: string; name: string }> = ({ url, name }) => {
   const resolvedUrl = useResolvedAssetUrl(url);
   if (!resolvedUrl) return <span>{name.charAt(0)}</span>;

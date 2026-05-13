@@ -109,6 +109,7 @@ describe('characterAssetUpload', () => {
     expect(getCharacterAssetKind(path)).toBe(type);
   });
 
+<<<<<<< HEAD
   it('detects video asset URLs with query strings and hashes', () => {
     expect(isVideoAssetUrl('https://cdn.example.com/avatar.mp4?version=1')).toBe(true);
     expect(isVideoAssetUrl('https://cdn.example.com/avatar.webm#preview')).toBe(true);
