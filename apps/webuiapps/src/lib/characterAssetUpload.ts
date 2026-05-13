@@ -3,7 +3,7 @@
  * Handles image/video uploads for character avatars
  */
 
-import { putBinaryFile, getBinaryFile, deleteFilesByPaths } from './diskStorage';
+import { putBinaryFile, deleteFilesByPaths, buildFileUrl } from './diskStorage';
 
 const CHARACTER_ASSETS_PATH = '/characters';
 export const MAX_CHARACTER_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -26,17 +26,13 @@ export const CHARACTER_VIDEO_MIME_TO_EXT = {
 
 const IMAGE_EXTENSIONS = new Set(Object.values(CHARACTER_IMAGE_MIME_TO_EXT));
 const VIDEO_EXTENSIONS = new Set(Object.values(CHARACTER_VIDEO_MIME_TO_EXT));
-const ALLOWED_CHARACTER_ASSET_EXTENSIONS = new Set([
-  ...IMAGE_EXTENSIONS,
-  ...VIDEO_EXTENSIONS,
-  'ogg',
-]);
+const ALLOWED_CHARACTER_ASSET_EXTENSIONS = new Set([...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS]);
 const LOCAL_CHARACTER_ASSET_PATH_PATTERN = new RegExp(
   `^${escapeRegExp(CHARACTER_ASSETS_PATH)}/([A-Za-z0-9_-]+)/emotions/([A-Za-z0-9_-]+)\\.([A-Za-z0-9]+)$`,
 );
 let fallbackUniqueAssetId = 0;
 
-const CHARACTER_IMAGE_EXTENSIONS = new Set([...Object.values(CHARACTER_IMAGE_MIME_TO_EXT), 'jpeg']);
+const CHARACTER_IMAGE_EXTENSIONS = new Set(Object.values(CHARACTER_IMAGE_MIME_TO_EXT));
 const CHARACTER_VIDEO_EXTENSIONS = new Set([...Object.values(CHARACTER_VIDEO_MIME_TO_EXT), 'ogg']);
 
 type CharacterAssetType = 'image' | 'video';
@@ -109,6 +105,7 @@ function createUniqueAssetFilename(safeEmotion: string, ext: string): string {
   } else {
     random = `${Date.now()}-${fallbackUniqueAssetId++}`;
   }
+
   return `${safeEmotion}-${Date.now()}-${random}.${ext}`;
 }
 
@@ -134,19 +131,17 @@ function parseLocalCharacterAssetPath(path?: string): { ext: string } | undefine
 }
 
 function getAssetUrlExtension(url?: string): string | undefined {
-  const pathname = url?.trim()?.split(/[?#]/, 1)[0];
+  const pathname = url?.trim().split(/[?#]/, 1)[0];
   const extension = pathname?.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase();
   return extension;
 }
 
 export function isVideoAssetUrl(url?: string): boolean {
-  if (url?.startsWith('data:video/')) return true;
   const extension = getAssetUrlExtension(url);
   return !!extension && CHARACTER_VIDEO_EXTENSIONS.has(extension);
 }
 
 export function isImageAssetUrl(url?: string): boolean {
-  if (url?.startsWith('data:image/')) return true;
   const extension = getAssetUrlExtension(url);
   return !!extension && CHARACTER_IMAGE_EXTENSIONS.has(extension);
 }
@@ -159,14 +154,11 @@ export function isLocalCharacterAssetPath(path?: string): path is string {
   return !!parseLocalCharacterAssetPath(path);
 }
 
-type ImageExt = 'png' | 'jpg' | 'webp' | 'gif' | 'svg';
-type VideoExt = 'mp4' | 'webm' | 'ogv' | 'mov';
-
 export function getCharacterAssetKind(path?: string): CharacterAssetType | undefined {
   const parsedPath = parseLocalCharacterAssetPath(path);
   if (!parsedPath) return undefined;
-  if (IMAGE_EXTENSIONS.has(parsedPath.ext as ImageExt)) return 'image';
-  if (VIDEO_EXTENSIONS.has(parsedPath.ext as VideoExt)) return 'video';
+  if (IMAGE_EXTENSIONS.has(parsedPath.ext)) return 'image';
+  if (VIDEO_EXTENSIONS.has(parsedPath.ext)) return 'video';
   return undefined;
 }
 
@@ -198,18 +190,14 @@ export async function uploadCharacterAsset(
 
 /**
  * Get the display URL for a character asset.
- * Returns data URL for local files, original path for external URLs.
+ * Returns a streamed file URL for local files, original path for external URLs.
  */
-export async function getCharacterAssetUrl(path: string): Promise<string | undefined> {
+export function getCharacterAssetUrl(path: string): string | undefined {
   if (isExternalOrDataUrl(path)) {
     return path;
   }
   if (!isLocalCharacterAssetPath(path)) {
     return undefined;
   }
-  const result = await getBinaryFile(path);
-  if (result) {
-    return `data:${result.mimeType};base64,${result.base64}`;
-  }
-  return undefined;
+  return buildFileUrl(path);
 }

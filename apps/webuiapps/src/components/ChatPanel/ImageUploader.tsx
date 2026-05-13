@@ -56,11 +56,10 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     if (isExternalOrDataUrl(currentUrl)) {
       setPreviewUrl(currentUrl);
     } else {
-      getCharacterAssetUrl(currentUrl).then((url) => {
-        if (!cancelled && expectedUrlRef.current === currentUrl && url) {
-          setPreviewUrl(url);
-        }
-      });
+      const url = getCharacterAssetUrl(currentUrl);
+      if (!cancelled && expectedUrlRef.current === currentUrl) {
+        setPreviewUrl(url ?? null);
+      }
     }
 
     return () => {
@@ -92,18 +91,12 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       }
 
       if (expectedUrlRef.current === path || !expectedUrlRef.current) {
-const isVidLocal = isVid;
+        const isVidLocal = file.type.startsWith('video/') || isVideoAssetUrl(path);
         setIsVideo(isVidLocal);
         if (isExternalOrDataUrl(path)) {
           setPreviewUrl(path);
         } else {
-          let url: string | null | undefined;
-          try {
-            url = await getCharacterAssetUrl(path);
-          } catch {
-            await cleanupStaleUpload(path);
-            throw new Error('Failed to retrieve asset URL');
-          }
+          const url = getCharacterAssetUrl(path);
           if (!isCurrentUpload()) {
             await cleanupStaleUpload(path);
             return;
@@ -143,6 +136,10 @@ const isVidLocal = isVid;
     onRemove?.();
   };
 
+  const handlePreviewError = () => {
+    setError('Preview failed to load. Check the asset and try again.');
+  };
+
   return (
     <div className={styles.assetSlot} aria-busy={uploading}>
       <div className={styles.assetSlotHeader}>
@@ -152,9 +149,22 @@ const isVidLocal = isVid;
       {previewUrl ? (
         <div className={styles.assetPreview}>
           {isVideo ? (
-            <video src={previewUrl} autoPlay loop muted playsInline className={styles.assetMedia} />
+            <video
+              src={previewUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className={styles.assetMedia}
+              onError={handlePreviewError}
+            />
           ) : (
-            <img src={previewUrl} alt={emotion} className={styles.assetMedia} />
+            <img
+              src={previewUrl}
+              alt={emotion}
+              className={styles.assetMedia}
+              onError={handlePreviewError}
+            />
           )}
           <button
             className={styles.assetRemoveBtn}

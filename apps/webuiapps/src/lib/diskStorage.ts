@@ -28,6 +28,11 @@ function apiUrl(filePath: string, action?: string): string {
   return url;
 }
 
+/** Build a GET-only display URL for a stored file. */
+export function buildFileUrl(filePath: string): string {
+  return apiUrl(filePath);
+}
+
 /**
  * List files in a directory.
  * Returns { files: [{ path, type, size }], not_exists: boolean }

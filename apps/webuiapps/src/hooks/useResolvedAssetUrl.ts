@@ -19,7 +19,7 @@ export function useResolvedAssetUrl(url: string | undefined): string | undefined
 
     let mounted = true;
     setResolvedUrl(undefined);
-    getCharacterAssetUrl(url).then((resolved) => {
+    Promise.resolve(getCharacterAssetUrl(url)).then((resolved) => {
       if (mounted) {
         setResolvedUrl(resolved);
       }
