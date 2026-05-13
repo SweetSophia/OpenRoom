@@ -56,11 +56,10 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     if (isExternalOrDataUrl(currentUrl)) {
       setPreviewUrl(currentUrl);
     } else {
-      Promise.resolve(getCharacterAssetUrl(currentUrl)).then((url) => {
-        if (!cancelled && expectedUrlRef.current === currentUrl && url) {
-          setPreviewUrl(url);
-        }
-      });
+      const url = getCharacterAssetUrl(currentUrl);
+      if (!cancelled && expectedUrlRef.current === currentUrl) {
+        setPreviewUrl(url ?? null);
+      }
     }
 
     return () => {
@@ -97,7 +96,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         if (isExternalOrDataUrl(path)) {
           setPreviewUrl(path);
         } else {
-          const url = await Promise.resolve(getCharacterAssetUrl(path));
+          const url = getCharacterAssetUrl(path);
           if (!isCurrentUpload()) {
             await cleanupStaleUpload(path);
             return;
@@ -138,7 +137,6 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   };
 
   const handlePreviewError = () => {
-    setPreviewUrl(null);
     setError('Preview failed to load. Check the asset and try again.');
   };
 

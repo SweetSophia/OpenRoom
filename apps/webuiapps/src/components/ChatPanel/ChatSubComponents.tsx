@@ -129,7 +129,7 @@ export const CharacterAvatar: React.FC<{
         if (isExternalOrDataUrl(layer.url)) {
           resolved[layer.url] = layer.url;
         } else {
-          const resolvedUrl = await Promise.resolve(getCharacterAssetUrl(layer.url));
+          const resolvedUrl = getCharacterAssetUrl(layer.url);
           if (resolvedUrl) resolved[layer.url] = resolvedUrl;
         }
       }
