@@ -59,7 +59,6 @@ const supportedExtensions = [
 describe('characterAssetUpload', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.clearAllMocks();
     mockPutBinaryFile.mockResolvedValue(undefined);
     mockGetBinaryFile.mockResolvedValue({ base64: 'Zm9v', mimeType: 'image/png' });
     mockDeleteFilesByPaths.mockResolvedValue(undefined);
