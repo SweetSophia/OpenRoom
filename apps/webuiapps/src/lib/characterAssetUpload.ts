@@ -7,7 +7,7 @@ import { putBinaryFile, getBinaryFile, deleteFilesByPaths } from './diskStorage'
 
 const CHARACTER_ASSETS_PATH = '/characters';
 export const MAX_CHARACTER_IMAGE_BYTES = 10 * 1024 * 1024;
-export const MAX_CHARACTER_VIDEO_BYTES = 50 * 1024 * 1024;
+export const MAX_CHARACTER_VIDEO_BYTES = 20 * 1024 * 1024;
 
 export const CHARACTER_IMAGE_MIME_TO_EXT = {
   'image/jpeg': 'jpg',
@@ -24,10 +24,13 @@ export const CHARACTER_VIDEO_MIME_TO_EXT = {
   'video/quicktime': 'mov',
 } as const;
 
-const ALLOWED_CHARACTER_ASSET_EXTENSIONS = new Set([
-  ...Object.values(CHARACTER_IMAGE_MIME_TO_EXT),
-  ...Object.values(CHARACTER_VIDEO_MIME_TO_EXT),
-]);
+const IMAGE_EXTENSIONS = new Set(Object.values(CHARACTER_IMAGE_MIME_TO_EXT));
+const VIDEO_EXTENSIONS = new Set(Object.values(CHARACTER_VIDEO_MIME_TO_EXT));
+const ALLOWED_CHARACTER_ASSET_EXTENSIONS = new Set([...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS]);
+const LOCAL_CHARACTER_ASSET_PATH_PATTERN = new RegExp(
+  `^${escapeRegExp(CHARACTER_ASSETS_PATH)}/([A-Za-z0-9_-]+)/emotions/([A-Za-z0-9_-]+)\\.([A-Za-z0-9]+)$`,
+);
+let fallbackUniqueAssetId = 0;
 
 type CharacterAssetType = 'image' | 'video';
 
@@ -37,6 +40,10 @@ function sanitizePathComponent(input: string): string {
     .replace(/\.\./g, '_')
     .slice(0, 64)
     .replace(/^_+|_+$/g, '');
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -84,7 +91,19 @@ function assertSafePathComponent(value: string, label: string): string {
 }
 
 function createUniqueAssetFilename(safeEmotion: string, ext: string): string {
-  const random = Math.random().toString(36).slice(2, 10);
+  const cryptoApi = globalThis.crypto;
+  let random: string;
+
+  if (cryptoApi?.randomUUID) {
+    random = cryptoApi.randomUUID();
+  } else if (cryptoApi?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    cryptoApi.getRandomValues(bytes);
+    random = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  } else {
+    random = `${Date.now()}-${fallbackUniqueAssetId++}`;
+  }
+
   return `${safeEmotion}-${Date.now()}-${random}.${ext}`;
 }
 
@@ -101,9 +120,7 @@ function parseLocalCharacterAssetPath(path?: string): { ext: string } | undefine
   if (path.includes('\\') || path.includes('//') || path.includes('..')) return undefined;
   if (containsEncodedTraversal(path)) return undefined;
 
-  const match = path.match(
-    /^\/characters\/([A-Za-z0-9_-]+)\/emotions\/([A-Za-z0-9_-]+)\.([A-Za-z0-9]+)$/,
-  );
+  const match = path.match(LOCAL_CHARACTER_ASSET_PATH_PATTERN);
   if (!match) return undefined;
 
   const ext = match[3].toLowerCase();
@@ -115,15 +132,16 @@ export function isExternalOrDataUrl(path: string): boolean {
   return path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:');
 }
 
-export function isLocalCharacterAssetPath(path?: string): boolean {
+export function isLocalCharacterAssetPath(path?: string): path is string {
   return !!parseLocalCharacterAssetPath(path);
 }
 
 export function getCharacterAssetKind(path?: string): CharacterAssetType | undefined {
   const parsedPath = parseLocalCharacterAssetPath(path);
   if (!parsedPath) return undefined;
-  if (Object.values(CHARACTER_IMAGE_MIME_TO_EXT).includes(parsedPath.ext as never)) return 'image';
-  return 'video';
+  if (IMAGE_EXTENSIONS.has(parsedPath.ext)) return 'image';
+  if (VIDEO_EXTENSIONS.has(parsedPath.ext)) return 'video';
+  return undefined;
 }
 
 export async function deleteCharacterAsset(path?: string): Promise<void> {
