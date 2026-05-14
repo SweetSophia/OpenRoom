@@ -1,7 +1,23 @@
 import { defineConfig, devices } from '@playwright/test';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-const e2ePort = Number(process.env.PLAYWRIGHT_PORT ?? 3000);
+const DEFAULT_E2E_PORT = 3000;
+
+function parseE2ePort(rawPort: string | undefined): number {
+  const trimmedPort = rawPort?.trim();
+  if (!trimmedPort) return DEFAULT_E2E_PORT;
+
+  const parsedPort = Number(trimmedPort);
+  return Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65_535
+    ? parsedPort
+    : DEFAULT_E2E_PORT;
+}
+
+const e2ePort = parseE2ePort(process.env.PLAYWRIGHT_PORT);
 const baseURL = `http://127.0.0.1:${e2ePort}`;
+const e2eHome = process.env.PLAYWRIGHT_HOME?.trim() || mkdtempSync(join(tmpdir(), 'openroom-e2e-'));
 
 export default defineConfig({
   testDir: './e2e',
@@ -21,9 +37,13 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm --dir apps/webuiapps exec vite --host 127.0.0.1 --port ${e2ePort} --strictPort`,
+    command: `pnpm --dir apps/webuiapps dev --host 127.0.0.1 --port ${e2ePort} --strictPort`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    env: {
+      HOME: e2eHome,
+      USERPROFILE: e2eHome,
+    },
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

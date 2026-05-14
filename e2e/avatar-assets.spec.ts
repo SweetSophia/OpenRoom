@@ -17,26 +17,21 @@ test.describe('Avatar asset editor', () => {
 
     await page.locator('[data-testid="character-editor-tab-assets"]').click();
 
-    const dropzone = page
-      .locator('[data-testid^="character-asset-upload-"][data-testid$="-dropzone"]')
-      .first();
+    const dropzone = page.locator('[data-testid="character-asset-upload-default-dropzone"]');
     await expect(dropzone).toBeVisible();
     await expect(dropzone).toBeEnabled();
     await dropzone.focus();
     await expect(dropzone).toBeFocused();
 
-    await page
-      .locator('[data-testid^="character-asset-upload-"][data-testid$="-file-input"]')
-      .first()
-      .setInputFiles({
-        name: 'avatar-emotion.png',
-        mimeType: 'image/png',
-        buffer: tinyPng,
-      });
+    await page.locator('[data-testid="character-asset-upload-default-file-input"]').setInputFiles({
+      name: 'avatar-emotion.png',
+      mimeType: 'image/png',
+      buffer: tinyPng,
+    });
 
-    await expect(
-      page.locator('[data-testid^="character-asset-upload-"][data-testid$="-remove"]').first(),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-testid="character-asset-upload-default-remove"]')).toBeVisible(
+      { timeout: 10_000 },
+    );
 
     await page.locator('[data-testid="character-editor-done"]').click();
     await expect(page.locator('[data-testid="character-panel"]')).toBeVisible();
