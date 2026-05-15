@@ -115,7 +115,7 @@ All file operations go through the `@/lib` unified file API per project conventi
 
 ## Main Avatar Component: CharacterAvatar
 
-**File:** `apps/webuiapps/src/components/ChatPanel/ChatSubComponents.tsx` (lines 92-198)
+**File:** `apps/webuiapps/src/components/ChatPanel/ChatSubComponents.tsx` (lines 96–251)
 
 The `CharacterAvatar` is a `memo()`-wrapped React component rendered inside the ChatPanel's left 280px column (`.avatarSide`).
 
@@ -206,7 +206,7 @@ export const CharacterAvatar: React.FC<{
 
 ## Emotion Resolution Algorithm
 
-**File:** `apps/webuiapps/src/lib/characterManager.ts` (lines 316-368)
+**File:** `apps/webuiapps/src/lib/characterManager.ts` (lines 319–368)
 
 ### `resolveEmotionMedia(config, emotion?)`
 
@@ -412,7 +412,7 @@ The character settings modal has two views: **List** and **Editor**.
 ### Editor Data Flow
 
 ```
-User pastes URL or uploads asset → emotionImages[emotion] or emotionVideos[emotion] = path/url
+User pastes URL or uploads asset → emotionImages[emotion] = url  or  emotionVideos[emotion] = [url]
         │
         ▼
    On Save:

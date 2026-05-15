@@ -189,7 +189,7 @@ The desktop live wallpaper is a looping background video, also muted.
 <video src={wallpaper} autoPlay loop muted playsInline />
 ```
 
-### 4. Generic Binary File Storage (Image-Only Today)
+### 4. Generic Binary File Storage
 
 **File:** `apps/webuiapps/src/lib/diskStorage.ts`
 
