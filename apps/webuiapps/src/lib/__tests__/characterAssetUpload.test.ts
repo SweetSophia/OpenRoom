@@ -4,6 +4,7 @@ vi.mock('../diskStorage', () => ({
   putBinaryFile: vi.fn().mockResolvedValue(undefined),
   getBinaryFile: vi.fn().mockResolvedValue(null),
   deleteFilesByPaths: vi.fn().mockResolvedValue(undefined),
+  buildFileUrl: vi.fn((path: string) => `/api/session-data?path=apps${encodeURIComponent(path)}`),
 }));
 
 import {
@@ -17,12 +18,14 @@ import {
   MAX_CHARACTER_VIDEO_BYTES,
   uploadCharacterAsset,
   deleteCharacterAsset,
+  sanitizeCharacterAssetTestIdPart,
 } from '../characterAssetUpload';
-import { deleteFilesByPaths, getBinaryFile, putBinaryFile } from '../diskStorage';
+import { buildFileUrl, deleteFilesByPaths, getBinaryFile, putBinaryFile } from '../diskStorage';
 
 const mockPutBinaryFile = vi.mocked(putBinaryFile);
 const mockGetBinaryFile = vi.mocked(getBinaryFile);
 const mockDeleteFilesByPaths = vi.mocked(deleteFilesByPaths);
+const mockBuildFileUrl = vi.mocked(buildFileUrl);
 
 function createFile(type: string): File {
   return new File(['asset'], 'asset', { type });
@@ -86,9 +89,21 @@ describe('characterAssetUpload', () => {
     const unsafePath = '/characters/a/emotions/%2e%2e%2fx.png';
 
     await deleteCharacterAsset(unsafePath);
-    await expect(getCharacterAssetUrl(unsafePath)).resolves.toBeUndefined();
+    expect(getCharacterAssetUrl(unsafePath)).toBeUndefined();
 
     expect(mockDeleteFilesByPaths).not.toHaveBeenCalled();
+    expect(mockGetBinaryFile).not.toHaveBeenCalled();
+    expect(mockBuildFileUrl).not.toHaveBeenCalled();
+  });
+
+  it('streams valid local asset paths through the session-data API', async () => {
+    const imagePath = '/characters/agent_1/emotions/happy-1700000000000-abc123xy.png';
+
+    expect(getCharacterAssetUrl(imagePath)).toMatch(
+      /^\/api\/session-data\?path=apps%2Fcharacters%2Fagent_1%2Femotions%2Fhappy-1700000000000-abc123xy\.png$/,
+    );
+
+    expect(mockBuildFileUrl).toHaveBeenCalledWith(imagePath);
     expect(mockGetBinaryFile).not.toHaveBeenCalled();
   });
 
@@ -263,5 +278,11 @@ describe('characterAssetUpload', () => {
     ).rejects.toThrow('Character video asset exceeds');
 
     expect(mockPutBinaryFile).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes emotion names for stable upload test ids', () => {
+    expect(sanitizeCharacterAssetTestIdPart('Happy Face')).toBe('happy-face');
+    expect(sanitizeCharacterAssetTestIdPart(' idle/video ')).toBe('idle-video');
+    expect(sanitizeCharacterAssetTestIdPart('...')).toBe('unknown');
   });
 });

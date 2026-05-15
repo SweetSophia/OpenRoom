@@ -3,7 +3,7 @@
  * Handles image/video uploads for character avatars
  */
 
-import { putBinaryFile, getBinaryFile, deleteFilesByPaths } from './diskStorage';
+import { putBinaryFile, deleteFilesByPaths, buildFileUrl } from './diskStorage';
 
 const CHARACTER_ASSETS_PATH = '/characters';
 export const MAX_CHARACTER_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -50,6 +50,16 @@ function sanitizePathComponent(input: string): string {
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function sanitizeCharacterAssetTestIdPart(input: string): string {
+  return (
+    input
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'unknown'
+  );
 }
 
 /**
@@ -199,18 +209,14 @@ export async function uploadCharacterAsset(
 
 /**
  * Get the display URL for a character asset.
- * Returns data URL for local files, original path for external URLs.
+ * Returns a streamed file URL for local files, original path for external URLs.
  */
-export async function getCharacterAssetUrl(path: string): Promise<string | undefined> {
+export function getCharacterAssetUrl(path: string): string | undefined {
   if (isExternalOrDataUrl(path)) {
     return path;
   }
   if (!isLocalCharacterAssetPath(path)) {
     return undefined;
   }
-  const result = await getBinaryFile(path);
-  if (result) {
-    return `data:${result.mimeType};base64,${result.base64}`;
-  }
-  return undefined;
+  return buildFileUrl(path);
 }

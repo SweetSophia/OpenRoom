@@ -556,6 +556,7 @@ const ChatPanel: React.FC<{
               className={styles.headerLeft}
               onClick={() => setShowCharacterPanel(true)}
               style={{ cursor: 'pointer' }}
+              data-testid="character-panel-trigger"
             >
               <span className={styles.characterName}>{character.character_name}</span>
             </div>

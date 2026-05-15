@@ -3,8 +3,10 @@ import { Upload, X } from 'lucide-react';
 import {
   uploadCharacterAsset,
   getCharacterAssetUrl,
+  deleteCharacterAsset,
   isExternalOrDataUrl,
   isVideoAssetUrl,
+  sanitizeCharacterAssetTestIdPart,
 } from '@/lib/characterAssetUpload';
 import styles from './panel.module.scss';
 
@@ -32,6 +34,16 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const expectedUrlRef = useRef<string | undefined>(undefined);
+  const uploadSequenceRef = useRef(0);
+  const safeEmotion = sanitizeCharacterAssetTestIdPart(emotion);
+  const testIdBase = `character-asset-upload-${safeEmotion}`;
+  const uploadLabel = `Upload asset for ${emotion}`;
+
+  useEffect(() => {
+    return () => {
+      uploadSequenceRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     expectedUrlRef.current = currentUrl;
@@ -48,7 +60,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     if (isExternalOrDataUrl(currentUrl)) {
       setPreviewUrl(currentUrl);
     } else {
-      getCharacterAssetUrl(currentUrl).then((url) => {
+      Promise.resolve(getCharacterAssetUrl(currentUrl)).then((url) => {
         if (!cancelled && expectedUrlRef.current === currentUrl && url) {
           setPreviewUrl(url);
         }
@@ -61,6 +73,16 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   }, [currentUrl]);
 
   const handleFile = async (file: File) => {
+    const uploadSequence = (uploadSequenceRef.current += 1);
+    const isCurrentUpload = () => uploadSequenceRef.current === uploadSequence;
+    const cleanupStaleUpload = async (path: string) => {
+      try {
+        await deleteCharacterAsset(path);
+      } catch (err) {
+        console.warn('Failed to clean up stale uploaded asset:', err);
+      }
+    };
+
     const isVid = file.type.startsWith('video/') || isVideoAssetUrl(file.name);
     setIsVideo(isVid);
     setUploading(true);
@@ -68,42 +90,69 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     try {
       const type = isVid ? 'video' : 'image';
       const path = await uploadCharacterAsset(characterId, emotion, file, type);
+      if (!isCurrentUpload()) {
+        await cleanupStaleUpload(path);
+        return;
+      }
+
       if (expectedUrlRef.current === path || !expectedUrlRef.current) {
         const isVidLocal = isVid;
         setIsVideo(isVidLocal);
         if (isExternalOrDataUrl(path)) {
           setPreviewUrl(path);
         } else {
-          const url = await getCharacterAssetUrl(path);
+          const url = await Promise.resolve(getCharacterAssetUrl(path));
+          if (!isCurrentUpload()) {
+            await cleanupStaleUpload(path);
+            return;
+          }
           setPreviewUrl(url ?? null);
         }
       }
+      if (!isCurrentUpload()) {
+        await cleanupStaleUpload(path);
+        return;
+      }
       onUpload(path, type);
     } catch (err) {
+      if (!isCurrentUpload()) return;
       console.warn('Failed to upload asset:', err);
       setError('Upload failed. Check file size/type and try again.');
     } finally {
-      setUploading(false);
+      if (isCurrentUpload()) setUploading(false);
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragover(false);
+    if (uploading) return;
     const file = e.dataTransfer.files?.[0];
     if (file) handleFile(file);
   };
 
   const handleRemove = () => {
+    uploadSequenceRef.current += 1;
     setPreviewUrl(null);
+    setUploading(false);
     setIsVideo(false);
     setError(null);
     if (inputRef.current) inputRef.current.value = '';
     onRemove?.();
   };
 
+  const handlePreviewError = () => {
+    setPreviewUrl(null);
+    setError('Preview failed to load. Check the asset and try again.');
+  };
+
   return (
-    <div className={styles.assetSlot}>
+    <div
+      className={styles.assetSlot}
+      aria-busy={uploading}
+      aria-label={`${emotion} asset upload slot`}
+      data-testid={testIdBase}
+    >
       <div className={styles.assetSlotHeader}>
         <span className={styles.emotionTag}>{emotion}</span>
       </div>
@@ -111,16 +160,37 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       {previewUrl ? (
         <div className={styles.assetPreview}>
           {isVideo ? (
-            <video src={previewUrl} autoPlay loop muted playsInline className={styles.assetMedia} />
+            <video
+              src={previewUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className={styles.assetMedia}
+              onError={handlePreviewError}
+            />
           ) : (
-            <img src={previewUrl} alt={emotion} className={styles.assetMedia} />
+            <img
+              src={previewUrl}
+              alt={emotion}
+              className={styles.assetMedia}
+              onError={handlePreviewError}
+            />
           )}
-          <button className={styles.assetRemoveBtn} onClick={handleRemove} title="Remove">
+          <button
+            className={styles.assetRemoveBtn}
+            onClick={handleRemove}
+            title="Remove"
+            aria-label={`Remove ${emotion} asset`}
+            disabled={uploading}
+            data-testid={`${testIdBase}-remove`}
+          >
             <X size={12} />
           </button>
         </div>
       ) : (
-        <div
+        <button
+          type="button"
           className={`${styles.assetDropzone} ${dragover ? styles.assetDropzoneActive : ''}`}
           onDragOver={(e) => {
             e.preventDefault();
@@ -128,7 +198,13 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           }}
           onDragLeave={() => setDragover(false)}
           onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
+          aria-label={uploadLabel}
+          aria-busy={uploading}
+          onClick={() => {
+            if (!uploading) inputRef.current?.click();
+          }}
+          disabled={uploading}
+          data-testid={`${testIdBase}-dropzone`}
         >
           {uploading ? (
             <span className={styles.assetUploading}>Uploading...</span>
@@ -138,19 +214,27 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               <span className={styles.assetDropzoneText}>Drop or click</span>
             </>
           )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept={accept}
-            className={styles.assetHiddenInput}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
-            }}
-          />
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className={styles.assetHiddenInput}
+        disabled={uploading}
+        aria-label={uploadLabel}
+        data-testid={`${testIdBase}-file-input`}
+        onChange={(e) => {
+          if (uploading) return;
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+        }}
+      />
+      {error && (
+        <div className={styles.assetError} aria-live="polite" data-testid={`${testIdBase}-error`}>
+          {error}
         </div>
       )}
-      {error && <div className={styles.assetError}>{error}</div>}
     </div>
   );
 };
