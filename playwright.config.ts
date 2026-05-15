@@ -1,9 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const DEFAULT_E2E_PORT = 3000;
+const DEFAULT_E2E_PORT = 4310;
 
 function parseE2ePort(rawPort: string | undefined): number {
   const trimmedPort = rawPort?.trim();
@@ -17,7 +17,14 @@ function parseE2ePort(rawPort: string | undefined): number {
 
 const e2ePort = parseE2ePort(process.env.PLAYWRIGHT_PORT);
 const baseURL = `http://127.0.0.1:${e2ePort}`;
-const e2eHome = process.env.PLAYWRIGHT_HOME?.trim() || mkdtempSync(join(tmpdir(), 'openroom-e2e-'));
+const configuredE2eHome = process.env.PLAYWRIGHT_HOME?.trim();
+const e2eHome = configuredE2eHome || mkdtempSync(join(tmpdir(), 'openroom-e2e-'));
+
+if (!configuredE2eHome) {
+  process.once('exit', () => {
+    rmSync(e2eHome, { recursive: true, force: true });
+  });
+}
 
 export default defineConfig({
   testDir: './e2e',
