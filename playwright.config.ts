@@ -1,4 +1,30 @@
 import { defineConfig, devices } from '@playwright/test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const DEFAULT_E2E_PORT = 4310;
+
+function parseE2ePort(rawPort: string | undefined): number {
+  const trimmedPort = rawPort?.trim();
+  if (!trimmedPort) return DEFAULT_E2E_PORT;
+
+  const parsedPort = Number(trimmedPort);
+  return Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65_535
+    ? parsedPort
+    : DEFAULT_E2E_PORT;
+}
+
+const e2ePort = parseE2ePort(process.env.PLAYWRIGHT_PORT);
+const baseURL = `http://127.0.0.1:${e2ePort}`;
+const configuredE2eHome = process.env.PLAYWRIGHT_HOME?.trim();
+const e2eHome = configuredE2eHome || mkdtempSync(join(tmpdir(), 'openroom-e2e-'));
+
+if (!configuredE2eHome) {
+  process.once('exit', () => {
+    rmSync(e2eHome, { recursive: true, force: true });
+  });
+}
 
 export default defineConfig({
   testDir: './e2e',
@@ -8,7 +34,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL,
     trace: 'on-first-retry',
   },
   projects: [
@@ -18,9 +44,13 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    command: `pnpm --dir apps/webuiapps dev --host 127.0.0.1 --port ${e2ePort} --strictPort`,
+    url: baseURL,
+    env: {
+      HOME: e2eHome,
+      USERPROFILE: e2eHome,
+    },
+    reuseExistingServer: false,
+    timeout: 120_000,
   },
 });
